@@ -1,0 +1,375 @@
+EVC_GUI Source Code Explanation and Call Relationships
+======================================================
+
+Scope
+-----
+This document explains the Python source files that make up the application code and how they interact at runtime.
+
+Included source files:
+- main.py
+- version.py
+- evc_gui/__init__.py
+- evc_gui/app.py
+- evc_gui/logging_config.py
+- evc_gui/state_machine.py
+- evc_gui/services/__init__.py
+- evc_gui/services/serial_service.py
+- evc_gui/ui/__init__.py
+- evc_gui/ui/splash.py
+- evc_gui/ui/main_window.py
+
+
+1) Entry and metadata layer
+===========================
+
+main.py
+-------
+Purpose:
+- Program entry point when running `python main.py`.
+
+Code behavior:
+- Imports `main` from `evc_gui.app`.
+- Calls `main()` and exits process using `SystemExit(main())`.
+
+Calls out to:
+- `evc_gui.app.main()`
+
+Called by:
+- Python interpreter when this file is executed directly.
+
+
+version.py
+----------
+Purpose:
+- Single source of truth for app identity/version/author metadata.
+
+Key contents:
+- Constants: `APP_NAME`, `__version__`, `VERSION`, `COMPANY`, `DEPARTMENT`, `AUTHOR`, `CONTACT`.
+- `VERSION_HISTORY`: release notes list.
+- `display_version()`: returns `"v" + __version__`.
+
+Calls out to:
+- No project-internal module calls.
+
+Called by:
+- `evc_gui/__init__.py` (exports `__version__`)
+- `evc_gui/app.py` (app name/version in startup)
+- `evc_gui/ui/splash.py` (branding text)
+- `evc_gui/ui/main_window.py` (window/header text)
+
+
+evc_gui/__init__.py
+-------------------
+Purpose:
+- Package export surface.
+
+Code behavior:
+- Imports `__version__` from `version.py`.
+- Defines `__all__ = ["__version__"]`.
+
+Calls out to:
+- `version.__version__`
+
+Called by:
+- Any code importing `evc_gui.__version__`.
+
+
+2) Application bootstrap and infrastructure
+===========================================
+
+evc_gui/app.py
+--------------
+Purpose:
+- Creates Qt application, configures logging, sets global exception hook, shows splash, then main window.
+
+Key functions:
+1. `exception_hook(exc_type, exc_value, exc_traceback)`
+   - Passes through keyboard interrupts to default handler.
+   - Logs unhandled exceptions using logger `"crash"`.
+   - Shows a critical `QMessageBox`.
+
+2. `main() -> int`
+   - Calls `configure_logging()` and stores log file path.
+   - Installs `sys.excepthook = exception_hook`.
+   - Creates `QApplication`; sets app name/version.
+   - Gets app base folder from `runtime_dir()` and computes `asset_dir`.
+   - Creates `MainWindow(asset_dir, log_file)`.
+   - Creates `SplashScreen(asset_dir, minimum_ms=5000)`.
+   - Connects `splash.ready` signal to `window.show`.
+   - Shows splash and enters Qt event loop via `app.exec()`.
+
+Calls out to:
+- `evc_gui.logging_config.configure_logging()`
+- `evc_gui.logging_config.runtime_dir()`
+- `evc_gui.ui.main_window.MainWindow`
+- `evc_gui.ui.splash.SplashScreen`
+- PySide6 APIs (`QApplication`, `QMessageBox`)
+
+Called by:
+- `main.py`
+
+
+evc_gui/logging_config.py
+-------------------------
+Purpose:
+- Runtime path detection and logging/fault logging setup.
+
+Key functions:
+1. `runtime_dir() -> Path`
+   - If packaged executable (`sys.frozen`), returns executable folder.
+   - Otherwise returns project root relative to this file.
+
+2. `configure_logging() -> Path`
+   - Creates `logs/` under runtime dir.
+   - Creates rotating file handler `logs/evc_gui.log` (2 MB x 5 backups).
+   - Creates console handler.
+   - Applies formatter and sets global logging with `basicConfig(..., force=True)`.
+   - Tries enabling `faulthandler` to `logs/python_fault.log`.
+   - Returns path to `evc_gui.log`.
+
+Calls out to:
+- Python stdlib logging/fault APIs.
+- `runtime_dir()`
+
+Called by:
+- `evc_gui.app.main()`
+
+
+3) Core domain/state + service layer
+====================================
+
+evc_gui/state_machine.py
+------------------------
+Purpose:
+- Defines application states and enforces legal transitions.
+
+Key parts:
+1. `AppState(Enum)`
+   - States:
+     `INITIALIZATION`, `IDLE`, `SCAN_EQUIPMENT`, `CHECK_CONNECTION`,
+     `GETTING_START`, `RUN`, `SAVE_DATA`, `CLEANUP`, `ERROR`, `EXIT`.
+
+2. `ALLOWED_TRANSITIONS`
+   - Transition map from each source state to allowed next states.
+
+3. `EvcStateMachine(QObject)`
+   - Signals:
+     - `state_changed(source, target, reason)`
+     - `transition_rejected(source, target, reason)`
+   - Internal field: `_state` starts at `INITIALIZATION`.
+   - Property: `state`.
+   - Method: `transition(target, reason="") -> bool`
+     - Rejects invalid transitions (logs warning, emits rejection signal).
+     - Accepts valid transitions (updates state, logs info, emits changed signal).
+
+Calls out to:
+- PySide6 QObject/Signal.
+- Logging.
+
+Called by:
+- `evc_gui/ui/main_window.py` (state-driven UI and flow logic).
+
+
+evc_gui/services/__init__.py
+----------------------------
+Purpose:
+- Package marker for services namespace.
+- Currently contains no code.
+
+
+evc_gui/services/serial_service.py
+----------------------------------
+Purpose:
+- Encapsulates COM port enumeration, connect/probe/disconnect behavior.
+
+Key types/classes:
+1. `ConnectionResult` dataclass
+   - `ok: bool`
+   - `message: str`
+
+2. `SerialService`
+   - `_serial`: current pyserial object or `None`.
+   - `ports() -> list[str]`
+     - Returns available port device names via `list_ports.comports()`.
+   - `connected` property
+     - True when serial object exists and `is_open`.
+   - `connect(port, baudrate=115200, timeout=1.0) -> ConnectionResult`
+     - Disconnects existing connection first.
+     - Opens new `serial.Serial(...)`.
+     - Returns success/failure message.
+   - `probe(command=b"\\r\\n") -> ConnectionResult`
+     - Requires active connection.
+     - Clears input buffer, sends command, reads one line, returns reply/no-reply result.
+   - `disconnect()`
+     - Closes port if open and clears `_serial`.
+
+Calls out to:
+- `serial.Serial`
+- `serial.tools.list_ports.comports`
+
+Called by:
+- `evc_gui/ui/main_window.py`
+
+
+4) UI layer
+===========
+
+evc_gui/ui/__init__.py
+----------------------
+Purpose:
+- Package marker for UI namespace.
+- Currently contains no code.
+
+
+evc_gui/ui/splash.py
+--------------------
+Purpose:
+- Frameless splash screen shown during startup while dependencies are checked.
+
+Key parts:
+1. `MODULES`
+   - List of module checks: `(label, import_name, optional_flag)`.
+   - Required modules: PySerial, Pandas, OpenPyXL.
+   - Optional modules: NumPy, Matplotlib, PIL, python-docx, guardian_tlog, jsonl_to_excel.
+
+2. `ModuleLoader(QObject)`
+   - Signals:
+     - `progress(percent, text)`
+     - `complete()`
+   - `run()`
+     - Iterates `MODULES`, tries `importlib.import_module`.
+     - Emits progress updates and final completion signal.
+
+3. `SplashScreen(QWidget)`
+   - Signal: `ready()`
+   - Constructor:
+     - Builds splash UI (logo/title/meta/status/progress/footer).
+     - Uses `asset_dir/ASM-logo-small.gif` if available.
+     - Starts minimum display timer (`minimum_ms`).
+     - Creates worker thread and moves `ModuleLoader` into it.
+     - Connects loader progress/completion signals.
+   - `showEvent`
+     - Centers window and starts loader thread once.
+   - Progress/finish helpers:
+     - `_on_progress`, `_minimum_elapsed`, `_on_loading_complete`, `_finish_if_ready`.
+     - Emits `ready` and closes only when both:
+       1) minimum time elapsed, and
+       2) module loading completed.
+
+Calls out to:
+- `version` metadata helpers/constants.
+- PySide6 widgets/signals/threading/timer/movie APIs.
+- `importlib.import_module`.
+
+Called by:
+- `evc_gui.app.main()`
+
+
+evc_gui/ui/main_window.py
+-------------------------
+Purpose:
+- Main application window for Phase 1 communication validation.
+
+Main responsibilities:
+1. Build UI controls:
+   - Product selector, COM port selector, baud selector.
+   - Buttons: refresh/start/probe/run/abort/exit.
+   - State label, progress bar, status/activity output.
+   - Placeholder tabs for future phases.
+
+2. Wire state + service:
+   - Creates `SerialService`.
+   - Creates `EvcStateMachine`.
+   - Connects `machine.state_changed` to `on_state_changed`.
+
+3. Implement user actions:
+   - `refresh_ports()`
+     - Pulls current ports from `SerialService.ports()`.
+   - `start_connection()`
+     - Transitions state through scan/check.
+     - Opens serial connection.
+     - On success: goes to GETTING_START then IDLE, enables probe/run.
+     - On failure: transitions to ERROR.
+   - `probe()`
+     - Calls `SerialService.probe()`.
+   - `run_monitoring()`
+     - Performs state transitions ending in RUN.
+     - Sets indeterminate progress and enables abort.
+   - `abort()`
+     - Exits RUN to IDLE when applicable and resets UI.
+
+4. State-driven UI updates:
+   - `on_state_changed(source, target, reason)`
+     - Updates state label.
+     - Logs and displays transition text via `append()`.
+
+5. Shutdown safety:
+   - `closeEvent(event)`
+     - Ensures state moves through IDLE/CLEANUP/EXIT as allowed.
+     - Always disconnects serial.
+     - Accepts close event; logs exceptions if any.
+
+Calls out to:
+- `version` constants.
+- `evc_gui.state_machine.EvcStateMachine` and `AppState`.
+- `evc_gui.services.serial_service.SerialService`.
+- PySide6 widgets/signals.
+
+Called by:
+- `evc_gui.app.main()` (instantiated once at startup)
+
+
+5) Runtime call flow (how modules call each other)
+==================================================
+
+Startup sequence:
+1. `main.py` -> `evc_gui.app.main()`
+2. `app.main()` -> `configure_logging()` and `runtime_dir()`
+3. `app.main()` -> create `MainWindow(...)`
+4. `app.main()` -> create `SplashScreen(...)`
+5. `app.main()` -> connect `splash.ready -> window.show`
+6. Splash appears and starts `ModuleLoader` thread.
+7. After min time + module checks, splash emits `ready`.
+8. `MainWindow.show()` is triggered.
+9. Qt event loop continues handling UI events.
+
+Main interaction sequence (connect + run):
+1. User clicks Refresh -> `MainWindow.refresh_ports()` -> `SerialService.ports()`
+2. User clicks Start/Connect:
+   - `MainWindow.start_connection()`
+   - `EvcStateMachine.transition(SCAN_EQUIPMENT)`
+   - `EvcStateMachine.transition(CHECK_CONNECTION)`
+   - `SerialService.connect(...)`
+   - success path:
+     - `transition(GETTING_START)`
+     - `transition(IDLE)`
+   - failure path:
+     - `transition(ERROR)`
+3. User clicks Probe -> `MainWindow.probe()` -> `SerialService.probe()`
+4. User clicks Run:
+   - `MainWindow.run_monitoring()`
+   - transitions: `SCAN_EQUIPMENT -> CHECK_CONNECTION -> GETTING_START -> RUN`
+5. User clicks Abort:
+   - `MainWindow.abort()`
+   - if in RUN -> `transition(IDLE)`
+
+Shutdown sequence:
+1. User closes window -> `MainWindow.closeEvent()`
+2. State machine transitions toward `CLEANUP` then `EXIT` when valid.
+3. `SerialService.disconnect()` always called.
+
+
+6) Dependency direction summary
+===============================
+
+High-level dependency graph:
+- `main.py` -> `evc_gui.app`
+- `evc_gui.app` -> `evc_gui.logging_config`, `evc_gui.ui.splash`, `evc_gui.ui.main_window`, `version`
+- `evc_gui.ui.main_window` -> `evc_gui.state_machine`, `evc_gui.services.serial_service`, `version`
+- `evc_gui.ui.splash` -> `version`
+- `evc_gui.state_machine` -> (independent core state logic)
+- `evc_gui.services.serial_service` -> pyserial
+- `version.py` -> shared metadata only (no project dependencies)
+
+This keeps the architecture layered:
+entrypoint -> app bootstrap -> UI -> (state machine + services).

@@ -1,0 +1,4 @@
+Place approved files here:
+- ASM-logo-small.gif
+- evc_gui.ico
+Do not rename them unless you also update the code and PyInstaller command.
