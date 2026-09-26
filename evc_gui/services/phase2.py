@@ -1,0 +1,344 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from pathlib import Path
+import csv
+import logging
+import queue
+import re
+import threading
+import uuid
+from collections import deque
+
+from PySide6.QtCore import QObject, QThread, Signal
+
+from evc_gui.services.serial_service import SerialService
+
+log = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class EvcSample:
+    timestamp: datetime
+    pfwd: float
+    pref: float
+    c1: float
+    c2: float
+    vpp: float
+    dc_bias: float
+    pout: float
+    iout: float
+    rs: float | None = None
+    xs: float | None = None
+
+
+def _to_float(text: str) -> float:
+    return float(text.replace("%", ""))
+
+
+def parse_pdat1_line(line: str) -> dict[str, float]:
+    payload = line.split(":", 1)[1] if ":" in line else line
+    values = re.findall(r"[-+]?\d+(?:\.\d+)?", payload)
+    if len(values) < 8:
+        raise ValueError(f"Invalid pdat1 payload: {line}")
+    return {
+        "pfwd": _to_float(values[0]),
+        "pref": _to_float(values[1]),
+        "c1": _to_float(values[6]),
+        "c2": _to_float(values[7]),
+    }
+
+
+def parse_psum1_line(line: str) -> dict[str, float]:
+    if "|" not in line:
+        raise ValueError(f"Invalid psum1 payload: {line}")
+    left, right = line.split("|", 1)
+    left_tokens = left.split()
+    right_tokens = right.split()
+    if len(left_tokens) < 23 or len(right_tokens) < 2:
+        raise ValueError(f"Incomplete psum1 payload: {line}")
+    return {
+        "rs": _to_float(left_tokens[4]),
+        "xs": _to_float(left_tokens[5]),
+        "vpp": _to_float(left_tokens[14]),
+        "iout": _to_float(left_tokens[19]),
+        "pout": _to_float(left_tokens[21]),
+        "dc_bias": _to_float(right_tokens[1]),
+    }
+
+
+class SerialWorker(QThread):
+    sample_ready = Signal(object, str, str)
+    worker_error = Signal(str)
+
+    def __init__(
+        self,
+        serial: SerialService,
+        poll_interval_ms: int = 120,
+        command_timeout: float = 0.8,
+        demo_mode: bool = False,
+    ):
+        super().__init__()
+        self._serial = serial
+        self._poll_interval_ms = max(20, poll_interval_ms)
+        self._command_timeout = command_timeout
+        self._demo_mode = demo_mode
+        self._running = threading.Event()
+        self._demo_tick = 0
+
+    def start_polling(self):
+        self._running.set()
+        self.start()
+
+    def stop_polling(self):
+        self._running.clear()
+        self.wait(3000)
+
+    def run(self):
+        while self._running.is_set():
+            if self._demo_mode:
+                sample, pdat_line, psum_line = self._build_demo_sample()
+                self.sample_ready.emit(sample, pdat_line, psum_line)
+                self.msleep(self._poll_interval_ms)
+                continue
+            if not self._serial.connected:
+                self.worker_error.emit("Serial disconnected during RUN state")
+                return
+            pdat = self._serial.send_command("pdat1", timeout=self._command_timeout)
+            if not pdat.ok:
+                self.worker_error.emit(pdat.message)
+                self.msleep(self._poll_interval_ms)
+                continue
+            psum = self._serial.send_command("psum1", timeout=self._command_timeout)
+            if not psum.ok:
+                self.worker_error.emit(psum.message)
+                self.msleep(self._poll_interval_ms)
+                continue
+            pdat_line = _extract_payload_line(pdat.response)
+            psum_line = _extract_payload_line(psum.response)
+            try:
+                pdat_values = parse_pdat1_line(pdat_line)
+                psum_values = parse_psum1_line(psum_line)
+                sample = EvcSample(
+                    timestamp=datetime.now(),
+                    pfwd=pdat_values["pfwd"],
+                    pref=pdat_values["pref"],
+                    c1=pdat_values["c1"],
+                    c2=pdat_values["c2"],
+                    vpp=psum_values["vpp"],
+                    dc_bias=psum_values["dc_bias"],
+                    pout=psum_values["pout"],
+                    iout=psum_values["iout"],
+                    rs=psum_values["rs"],
+                    xs=psum_values["xs"],
+                )
+            except Exception as exc:
+                self.worker_error.emit(f"Phase 2 parse error: {exc}")
+                self.msleep(self._poll_interval_ms)
+                continue
+            self.sample_ready.emit(sample, pdat_line, psum_line)
+            self.msleep(self._poll_interval_ms)
+
+    def _build_demo_sample(self) -> tuple[EvcSample, str, str]:
+        elapsed_s = (self._demo_tick * self._poll_interval_ms) // 1000
+        self._demo_tick += 1
+        pfwd = float((elapsed_s // 10) % 10) * 100.0
+        pref = float((elapsed_s // 9) % 5)
+        c1 = float((elapsed_s // 10) % 10) * 10.0
+        c2 = float((elapsed_s // 5) % 20) * 4.0
+        vpp = float((elapsed_s // 10) % 10) * 50.0
+        dc_bias = -50.0 + (float((elapsed_s // 10) % 10) * 10.0)
+        pout = max(0.0, pfwd - pref)
+        iout = (pout / vpp) if vpp > 0 else 0.0
+        sample = EvcSample(
+            timestamp=datetime.now(),
+            pfwd=pfwd,
+            pref=pref,
+            c1=c1,
+            c2=c2,
+            vpp=vpp,
+            dc_bias=dc_bias,
+            pout=pout,
+            iout=iout,
+            rs=0.54,
+            xs=50.0,
+        )
+        pdat_line = f"F1 : {pfwd:6.0f} {pref:4.0f} 0.10 -14.44 0.54 50.00 {c1:5.1f} {c2:5.1f}"
+        psum_line = (
+            f"0.00 0.00 0.00 89.38 0.54 50.00 0.10 -14.44 6 63 6 63 "
+            f"{c1:4.1f}% {c2:4.1f}% {vpp:6.3f} 0.000 0.00 -4.90 0.00 {iout:5.2f} 0.00 {pout:6.2f} 0.0% | "
+            f"1200.00 {dc_bias:7.2f} HI -50.00 -50.00"
+        )
+        return sample, pdat_line, psum_line
+
+
+def _extract_payload_line(response: str) -> str:
+    candidates: list[str] = []
+    for line in response.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.endswith(">") and " " not in stripped:
+            continue
+        if ">" in stripped:
+            _, tail = stripped.rsplit(">", 1)
+            stripped = tail.strip()
+            if not stripped:
+                continue
+        lowered = stripped.lower()
+        if lowered in {"pdat1", "psum1"}:
+            continue
+        candidates.append(stripped)
+    if candidates:
+        return candidates[-1]
+    return ""
+
+
+class CsvWriter:
+    _STOP = object()
+
+    def __init__(self, tmp_path: Path, final_path: Path, headers: list[str]):
+        self._tmp_path = tmp_path
+        self._final_path = final_path
+        self._headers = headers
+        self._queue: queue.Queue[object] = queue.Queue()
+        self._thread = threading.Thread(target=self._loop, daemon=True)
+        self._started = False
+
+    def start(self):
+        if self._started:
+            return
+        self._tmp_path.parent.mkdir(parents=True, exist_ok=True)
+        self._thread.start()
+        self._started = True
+
+    def enqueue(self, row: dict[str, object]):
+        if self._started:
+            self._queue.put(row)
+
+    def close(self):
+        if not self._started:
+            return
+        self._queue.put(self._STOP)
+        self._thread.join(timeout=2)
+        self._tmp_path.replace(self._final_path)
+        self._started = False
+
+    def _loop(self):
+        file_exists = self._tmp_path.exists()
+        with self._tmp_path.open("a", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=self._headers)
+            if not file_exists:
+                writer.writeheader()
+                f.flush()
+            while True:
+                item = self._queue.get()
+                if item is self._STOP:
+                    f.flush()
+                    return
+                writer.writerow(item)
+                f.flush()
+
+
+class DataController(QObject):
+    sample_added = Signal(object)
+
+    def __init__(
+        self,
+        logs_dir: Path,
+        product: str,
+        serial_number: str,
+        firmware: str,
+        max_samples: int = 7200,
+    ):
+        super().__init__()
+        self._samples: deque[EvcSample] = deque(maxlen=max_samples)
+        self._session_id = uuid.uuid4().hex
+        safe_serial = serial_number or "unknown"
+        session = datetime.now().strftime("%Y%m%d_%H%M%S")
+        raw_base = f"phase2_raw_{safe_serial}_{session}.csv"
+        parsed_base = f"phase2_parsed_{safe_serial}_{session}.csv"
+        self._raw_writer = CsvWriter(
+            tmp_path=logs_dir / f"{raw_base}.tmp",
+            final_path=logs_dir / raw_base,
+            headers=["timestamp", "product", "serial_number", "firmware", "session_id", "pdat1", "psum1"],
+        )
+        self._parsed_writer = CsvWriter(
+            tmp_path=logs_dir / f"{parsed_base}.tmp",
+            final_path=logs_dir / parsed_base,
+            headers=[
+                "timestamp",
+                "product",
+                "serial_number",
+                "firmware",
+                "session_id",
+                "pfwd",
+                "pref",
+                "c1",
+                "c2",
+                "vpp",
+                "dc_bias",
+                "pout",
+                "iout",
+                "rs",
+                "xs",
+            ],
+        )
+        self._meta = {
+            "product": product or "Unknown",
+            "serial_number": serial_number or "",
+            "firmware": firmware or "",
+            "session_id": self._session_id,
+        }
+        self._raw_writer.start()
+        self._parsed_writer.start()
+
+    def append_sample(self, sample: EvcSample, raw_pdat1: str, raw_psum1: str):
+        self._samples.append(sample)
+        stamp = sample.timestamp.isoformat(timespec="milliseconds")
+        self._raw_writer.enqueue(
+            {
+                "timestamp": stamp,
+                "product": self._meta["product"],
+                "serial_number": self._meta["serial_number"],
+                "firmware": self._meta["firmware"],
+                "session_id": self._meta["session_id"],
+                "pdat1": raw_pdat1,
+                "psum1": raw_psum1,
+            }
+        )
+        self._parsed_writer.enqueue(
+            {
+                "timestamp": stamp,
+                "product": self._meta["product"],
+                "serial_number": self._meta["serial_number"],
+                "firmware": self._meta["firmware"],
+                "session_id": self._meta["session_id"],
+                "pfwd": sample.pfwd,
+                "pref": sample.pref,
+                "c1": sample.c1,
+                "c2": sample.c2,
+                "vpp": sample.vpp,
+                "dc_bias": sample.dc_bias,
+                "pout": sample.pout,
+                "iout": sample.iout,
+                "rs": sample.rs if sample.rs is not None else "",
+                "xs": sample.xs if sample.xs is not None else "",
+            }
+        )
+        self.sample_added.emit(sample)
+
+    def window(self, seconds: int) -> list[EvcSample]:
+        if not self._samples:
+            return []
+        end = self._samples[-1].timestamp
+        start = end - timedelta(seconds=max(1, seconds))
+        return [s for s in self._samples if s.timestamp >= start]
+
+    def latest(self) -> EvcSample | None:
+        return self._samples[-1] if self._samples else None
+
+    def close(self):
+        self._raw_writer.close()
+        self._parsed_writer.close()

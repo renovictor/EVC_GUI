@@ -1,6 +1,6 @@
 """Single source of truth for EVC GUI version information."""
 APP_NAME = "EVC GUI"
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 VERSION = tuple(int(part) for part in __version__.split("."))
 COMPANY = "ASM"
 DEPARTMENT = "PEALD RF Engineering"
@@ -8,6 +8,11 @@ AUTHOR = "Victor Huang"
 CONTACT = "victor.huang@asm.com"
 
 VERSION_HISTORY = [
+    {
+        "version": "1.0.2",
+        "date": "2026-09-27",
+        "summary": "Phase 2 completed: pdat1/psum1 acquisition, Power Scope plotting, demo mode, CSV logging, and chart rendering fix.",
+    },
     {
         "version": "1.0.1",
         "date": "2026-09-26",
