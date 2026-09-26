@@ -1,4 +1,4 @@
-# EVC GUI v1.0.0
+# EVC GUI v1.0.1
 
 ## Purpose
 A maintainable PySide6 foundation for validating EVC communication and progressively replacing/augmenting the original LabVIEW GUI. Supported product selections are Quantum, Tykon, Triton, and Chronos.
@@ -27,23 +27,23 @@ A maintainable PySide6 foundation for validating EVC communication and progressi
 At startup, a borderless 5-second splash screen immediately appears. The loader checks/imports modules on a background QThread. Optional modules are silently tolerated when missing. Required serial support is supplied by PySerial.
 
 ## Operation
-1. Choose Quantum, Tykon, Triton, or Chronos.
-2. Click **Refresh Ports**.
-3. Choose the COM port and baud rate.
-4. Click **Start / Connect** to validate that the port can be opened.
-5. Click **Probe** to send CR/LF. Replace the probe bytes in `SerialService.probe()` with the approved EVC command after the command protocol is confirmed.
-6. Click **Run** to validate the state flow. Phase 2 collection is deliberately disabled.
-7. Check `logs/evc_gui.log` and `logs/python_fault.log` for troubleshooting.
+1. Click **Refresh Ports**.
+2. Choose the COM port and baud rate (default is **57600**).
+3. Click **Start / Connect** to validate that the port can be opened.
+4. Click **Run**. During `SCAN_EQUIPMENT`, the GUI sends `ver` and displays the detected product type from the response.
+5. After `ver`, the GUI sends `sn`, displays `Unit S/N`, and switches logging to `logs/evc_gui_<UnitS/N>.log`.
+6. Click **Probe** to send CR/LF for basic command-path verification.
+7. Check `logs/` and `logs/python_fault.log` for troubleshooting.
 
 ## Branding assets
-Place the approved corporate `ASM-logo-small.gif` and application `evc_gui.ico` in `assets/`. The code uses a text fallback if either is unavailable. Use an approved `.ico` containing 16, 24, 32, 48, 64, 128, and 256 pixel sizes for Windows title bar, taskbar, file icon, and EXE icon.
+Use `ASM-logo-small.gif` for splash branding and `smithchart.ico` for title bar/taskbar icon. The code resolves assets from `assets/` first, then from the runtime root folder.
 
 ## Build a single EXE
 With the virtual environment active and approved assets present:
 
-`pyinstaller --noconfirm --clean --onefile --windowed --name "EVC_GUI_v1.0.0" --icon "assets\evc_gui.ico" --add-data "assets\ASM-logo-small.gif;assets" main.py`
+`pyinstaller --noconfirm --clean --onefile --windowed --name "EVC_GUI_v1.0.1" --icon "smithchart.ico" --add-data "ASM-logo-small.gif;." main.py`
 
-The output will be `dist\EVC_GUI_v1.0.0.exe`. PyInstaller one-file extraction means external writable logs are created beside the EXE when permissions allow. For controlled production deployment, use a writable deployment folder.
+The output will be `dist\EVC_GUI_v1.0.1.exe`. PyInstaller one-file extraction means external writable logs are created beside the EXE when permissions allow. For controlled production deployment, use a writable deployment folder.
 
 ## Project layout
 - `version.py`: version and history source of truth
@@ -51,7 +51,7 @@ The output will be `dist\EVC_GUI_v1.0.0.exe`. PyInstaller one-file extraction me
 - `evc_gui/services/serial_service.py`: hardware boundary
 - `evc_gui/ui/`: splash and main window
 - `evc_gui/logging_config.py`: rotating logs and fault capture
-- `RELEASE_CHECKLIST_v1.0.0.md`: repeatable release procedure
+- `RELEASE_CHECKLIST_v1.0.1.md`: repeatable release procedure
 
 ## Notes
 The original PDFs are design references, not runtime dependencies. Device-specific commands, response parsing, tlog timing, and product-specific protocol adapters should be added behind the service boundary instead of directly inside Qt widgets.

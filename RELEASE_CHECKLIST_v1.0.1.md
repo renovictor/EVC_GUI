@@ -1,8 +1,8 @@
-# EVC GUI Release Checklist v1.0.0
+# EVC GUI Release Checklist v1.0.1
 
 ## 1. Pre-check
 - [ ] Confirm `version.py`, README, checklist, window title, and EXE name use the same version.
-- [ ] Confirm approved `assets/ASM-logo-small.gif` and multi-resolution `assets/evc_gui.ico` are present.
+- [ ] Confirm approved `ASM-logo-small.gif` and `smithchart.ico` are present.
 - [ ] Confirm clean virtual environment and `pip install -r requirements.txt` succeeds.
 - [ ] Run `python -m compileall .`.
 - [ ] Confirm no credentials, COM captures, customer data, tlogs, or generated logs are staged.
@@ -32,23 +32,23 @@
 ## 4. Git commit and tag
 - [ ] `git status` is reviewed.
 - [ ] `git diff --check` passes.
-- [ ] Commit: `git add . && git commit -m "Release EVC GUI v1.0.0"`
-- [ ] Annotated tag: `git tag -a v1.0.0 -m "EVC GUI v1.0.0"`
-- [ ] Confirm tag points to the intended commit: `git show v1.0.0`.
+- [ ] Commit: `git add . && git commit -m "Release EVC GUI v1.0.1"`
+- [ ] Annotated tag: `git tag -a v1.0.1 -m "EVC GUI v1.0.1"`
+- [ ] Confirm tag points to the intended commit: `git show v1.0.1`.
 
 ## 5. Push
 - [ ] `git push origin <release-branch>`
-- [ ] `git push origin v1.0.0`
+- [ ] `git push origin v1.0.1`
 - [ ] Confirm remote commit and tag are visible.
 
 ## 6. Create single EXE
 - [ ] Delete old `build/`, `dist/`, and `.spec` after preserving required records.
 - [ ] Run the documented PyInstaller command.
-- [ ] EXE filename is exactly `EVC_GUI_v1.0.0.exe`.
+- [ ] EXE filename is exactly `EVC_GUI_v1.0.1.exe`.
 - [ ] EXE properties, File Explorer, title bar, and taskbar show the assigned icon.
 - [ ] Launch on a clean Windows validation PC without Python installed.
 - [ ] Confirm corporate endpoint/security scanning completes according to local process.
-- [ ] Record SHA-256: `Get-FileHash .\dist\EVC_GUI_v1.0.0.exe -Algorithm SHA256`.
+- [ ] Record SHA-256: `Get-FileHash .\dist\EVC_GUI_v1.0.1.exe -Algorithm SHA256`.
 
 ## 7. Post-release verification
 - [ ] Download/copy the released artifact from the approved release location.

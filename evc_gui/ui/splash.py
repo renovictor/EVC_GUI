@@ -52,8 +52,12 @@ class SplashScreen(QWidget):
         """)
         layout = QVBoxLayout(self); layout.setContentsMargins(32, 28, 32, 0); layout.setSpacing(12)
         logo = QLabel(); logo.setAlignment(Qt.AlignCenter)
-        gif_path = asset_dir / "ASM-logo-small.gif"
-        if gif_path.exists():
+        gif_path = None
+        for candidate in (asset_dir / "ASM-logo-small.gif", asset_dir.parent / "ASM-logo-small.gif"):
+            if candidate.exists():
+                gif_path = candidate
+                break
+        if gif_path:
             movie = QMovie(str(gif_path)); logo.setMovie(movie); movie.start(); self._movie = movie
         else:
             logo.setText("ASM"); logo.setStyleSheet("font-size: 34px; font-weight: 800;")

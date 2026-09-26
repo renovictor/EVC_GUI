@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass
+import time
 import serial
 from serial.tools import list_ports
 
@@ -9,6 +10,12 @@ log = logging.getLogger(__name__)
 class ConnectionResult:
     ok: bool
     message: str
+
+@dataclass(frozen=True)
+class CommandResult:
+    ok: bool
+    message: str
+    response: str
 
 class SerialService:
     def __init__(self):
@@ -22,7 +29,7 @@ class SerialService:
     def connected(self) -> bool:
         return bool(self._serial and self._serial.is_open)
 
-    def connect(self, port: str, baudrate: int = 115200, timeout: float = 1.0) -> ConnectionResult:
+    def connect(self, port: str, baudrate: int = 57600, timeout: float = 1.0) -> ConnectionResult:
         self.disconnect()
         try:
             self._serial = serial.Serial(port=port, baudrate=baudrate, timeout=timeout, write_timeout=timeout)
@@ -47,6 +54,42 @@ class SerialService:
         except Exception as exc:
             log.exception("Serial probe failed")
             return ConnectionResult(False, f"Probe failed: {exc}")
+
+    def send_command(self, command: str, timeout: float = 3.0) -> CommandResult:
+        if not self.connected:
+            return CommandResult(False, "Serial port is not connected", "")
+        command = command.strip()
+        if not command:
+            return CommandResult(False, "Command is empty", "")
+        old_timeout = self._serial.timeout
+        deadline = time.monotonic() + timeout
+        lines: list[str] = []
+        try:
+            self._serial.reset_input_buffer()
+            self._serial.write(f"{command}\r\n".encode("ascii", errors="ignore"))
+            self._serial.flush()
+            self._serial.timeout = 0.2
+            while time.monotonic() < deadline:
+                raw = self._serial.readline()
+                if not raw:
+                    continue
+                line = raw.decode(errors="replace").strip()
+                if not line:
+                    continue
+                lines.append(line)
+                if line.endswith(">"):
+                    break
+            response = "\n".join(lines)
+            if not lines:
+                return CommandResult(False, f"No response for '{command}'", "")
+            msg = f"Command '{command}' response received"
+            log.info(msg)
+            return CommandResult(True, msg, response)
+        except Exception as exc:
+            log.exception("Serial command failed: %s", command)
+            return CommandResult(False, f"Command '{command}' failed: {exc}", "")
+        finally:
+            self._serial.timeout = old_timeout
 
     def disconnect(self):
         if self._serial:
