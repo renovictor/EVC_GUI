@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.0.4] - 2026-09-27
+
+### Added
+- Dual-baud connection validation on Start/Connect (57600 and 230400) with response-content checks to reject garbled `ver`/`sn` data.
+- High-speed transition flow in scan stage: `baud 7` command, reconnect at 230400, and post-switch `ver` verification with settle/retry logic.
+- Expanded raw Phase 2 CSV fields for `pdat1` and `psum1` tokenized columns.
+
+### Changed
+- `ver` and `sn` scan commands now use 500 ms timeout.
+- Phase 2 polling command timeout reduced to 75 ms after entering run pipeline.
+- Phase 2 log file naming updated to `<UnitSN>Tykon_GUI_<YYYYMMDD>_<HHMM>_{raw|parsed}.csv`.
+- CSV timestamp format changed to `YYYY-MM-DD HH:MM:SS.mmm` for direct Excel recognition.
+- CSV writers now rotate every 3 hours.
+
+### Removed
+- Raw CSV metadata columns `product`, `serial_number`, and `session_id` to reduce file size.
+
 ## [1.0.3] - 2026-09-27
 
 ### Added

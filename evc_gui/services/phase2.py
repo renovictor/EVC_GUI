@@ -17,6 +17,35 @@ from evc_gui.services.serial_service import SerialService
 
 log = logging.getLogger(__name__)
 
+PDAT1_RAW_HEADERS = ["Fx", "Pfwd", "Pref", "LoadR", "Load X", "Inp R", "Inp X", "C1 %", "C2 %"]
+PSUM1_LEFT_RAW_HEADERS = [
+    "V_Tune",
+    "V_NG",
+    "I_Tune",
+    "P_Tune",
+    "Rs",
+    "Xs",
+    "Rl",
+    "Xl",
+    "C1c",
+    "C1f",
+    "C2c",
+    "C2f",
+    "C1%",
+    "C2%",
+    "Vpp_Tune",
+    "Vpp_NG",
+    "Vcap",
+    "VBias",
+    "IBias",
+    "Iout",
+    "PhOut",
+    "Pout",
+    "Eff%",
+]
+PSUM1_RIGHT_RAW_HEADERS = ["HVDC", "DcBias", "DcBias_RNG", "Amb.Temp", "PA.Temp"]
+LOG_ROTATION_INTERVAL = timedelta(hours=3)
+
 
 @dataclass(frozen=True)
 class EvcSample:
@@ -45,6 +74,8 @@ def parse_pdat1_line(line: str) -> dict[str, float]:
     return {
         "pfwd": _to_float(values[0]),
         "pref": _to_float(values[1]),
+        "load_r": _to_float(values[4]),
+        "load_x": _to_float(values[5]),
         "c1": _to_float(values[6]),
         "c2": _to_float(values[7]),
     }
@@ -66,6 +97,41 @@ def parse_psum1_line(line: str) -> dict[str, float]:
         "pout": _to_float(left_tokens[21]),
         "dc_bias": _to_float(right_tokens[1]),
     }
+
+
+def _map_raw_tokens(headers: list[str], tokens: list[str]) -> dict[str, str]:
+    return {header: tokens[index] if index < len(tokens) else "" for index, header in enumerate(headers)}
+
+
+def parse_pdat1_raw_columns(line: str) -> dict[str, str]:
+    fx = ""
+    payload = line
+    if ":" in line:
+        left, payload = line.split(":", 1)
+        fx_tokens = left.split()
+        if fx_tokens:
+            fx = fx_tokens[-1]
+    else:
+        parts = line.split(maxsplit=1)
+        if parts:
+            fx = parts[0]
+            payload = parts[1] if len(parts) > 1 else ""
+    values = re.findall(r"[-+]?\d+(?:\.\d+)?", payload)
+    if len(values) < 8:
+        log.warning("Incomplete pdat1 raw payload: %s", line)
+    return {"Fx": fx} | _map_raw_tokens(PDAT1_RAW_HEADERS[1:], values)
+
+
+def parse_psum1_raw_columns(line: str) -> dict[str, str]:
+    if "|" in line:
+        left, right = line.split("|", 1)
+    else:
+        left, right = line, ""
+    left_tokens = left.split()
+    right_tokens = right.split()
+    if len(left_tokens) < len(PSUM1_LEFT_RAW_HEADERS) or len(right_tokens) < len(PSUM1_RIGHT_RAW_HEADERS):
+        log.warning("Incomplete psum1 raw payload: %s", line)
+    return _map_raw_tokens(PSUM1_LEFT_RAW_HEADERS, left_tokens) | _map_raw_tokens(PSUM1_RIGHT_RAW_HEADERS, right_tokens)
 
 
 class SerialWorker(QThread):
@@ -130,8 +196,8 @@ class SerialWorker(QThread):
                     dc_bias=psum_values["dc_bias"],
                     pout=psum_values["pout"],
                     iout=psum_values["iout"],
-                    rs=psum_values["rs"],
-                    xs=psum_values["xs"],
+                    rs=pdat_values["load_r"],
+                    xs=pdat_values["load_x"],
                 )
             except Exception as exc:
                 self.worker_error.emit(f"Phase 2 parse error: {exc}")
@@ -255,18 +321,39 @@ class DataController(QObject):
         super().__init__()
         self._samples: deque[EvcSample] = deque(maxlen=max_samples)
         self._session_id = uuid.uuid4().hex
-        safe_serial = serial_number or "unknown"
-        session = datetime.now().strftime("%Y%m%d_%H%M%S")
-        raw_base = f"phase2_raw_{safe_serial}_{session}.csv"
-        parsed_base = f"phase2_parsed_{safe_serial}_{session}.csv"
+        self._logs_dir = logs_dir
+        self._safe_serial = re.sub(r"[^0-9A-Za-z_-]", "", serial_number) or "unknown"
+        self._raw_writer: CsvWriter | None = None
+        self._parsed_writer: CsvWriter | None = None
+        self._active_log_started_at: datetime | None = None
+        self._meta = {
+            "product": product or "Unknown",
+            "serial_number": serial_number or "",
+            "firmware": firmware or "",
+            "session_id": self._session_id,
+        }
+        self._open_writers(datetime.now())
+
+    def _open_writers(self, started_at: datetime):
+        date_code = started_at.strftime("%Y%m%d")
+        time_code = started_at.strftime("%H%M")
+        base_name = f"{self._safe_serial}Tykon_GUI_{date_code}_{time_code}"
+        raw_base = f"{base_name}_raw.csv"
+        parsed_base = f"{base_name}_parsed.csv"
         self._raw_writer = CsvWriter(
-            tmp_path=logs_dir / f"{raw_base}.tmp",
-            final_path=logs_dir / raw_base,
-            headers=["timestamp", "product", "serial_number", "firmware", "session_id", "pdat1", "psum1"],
+            tmp_path=self._logs_dir / f"{raw_base}.tmp",
+            final_path=self._logs_dir / raw_base,
+            headers=[
+                "timestamp",
+                "firmware",
+                *PDAT1_RAW_HEADERS,
+                *PSUM1_LEFT_RAW_HEADERS,
+                *PSUM1_RIGHT_RAW_HEADERS,
+            ],
         )
         self._parsed_writer = CsvWriter(
-            tmp_path=logs_dir / f"{parsed_base}.tmp",
-            final_path=logs_dir / parsed_base,
+            tmp_path=self._logs_dir / f"{parsed_base}.tmp",
+            final_path=self._logs_dir / parsed_base,
             headers=[
                 "timestamp",
                 "product",
@@ -285,48 +372,54 @@ class DataController(QObject):
                 "xs",
             ],
         )
-        self._meta = {
-            "product": product or "Unknown",
-            "serial_number": serial_number or "",
-            "firmware": firmware or "",
-            "session_id": self._session_id,
-        }
         self._raw_writer.start()
         self._parsed_writer.start()
+        self._active_log_started_at = started_at
+
+    def _rotate_writers_if_needed(self, current_time: datetime):
+        if self._active_log_started_at is None:
+            self._open_writers(current_time)
+            return
+        if current_time - self._active_log_started_at < LOG_ROTATION_INTERVAL:
+            return
+        if self._raw_writer is not None:
+            self._raw_writer.close()
+        if self._parsed_writer is not None:
+            self._parsed_writer.close()
+        self._open_writers(current_time)
 
     def append_sample(self, sample: EvcSample, raw_pdat1: str, raw_psum1: str):
         self._samples.append(sample)
-        stamp = sample.timestamp.isoformat(timespec="milliseconds")
-        self._raw_writer.enqueue(
-            {
-                "timestamp": stamp,
-                "product": self._meta["product"],
-                "serial_number": self._meta["serial_number"],
-                "firmware": self._meta["firmware"],
-                "session_id": self._meta["session_id"],
-                "pdat1": raw_pdat1,
-                "psum1": raw_psum1,
-            }
-        )
-        self._parsed_writer.enqueue(
-            {
-                "timestamp": stamp,
-                "product": self._meta["product"],
-                "serial_number": self._meta["serial_number"],
-                "firmware": self._meta["firmware"],
-                "session_id": self._meta["session_id"],
-                "pfwd": sample.pfwd,
-                "pref": sample.pref,
-                "c1": sample.c1,
-                "c2": sample.c2,
-                "vpp": sample.vpp,
-                "dc_bias": sample.dc_bias,
-                "pout": sample.pout,
-                "iout": sample.iout,
-                "rs": sample.rs if sample.rs is not None else "",
-                "xs": sample.xs if sample.xs is not None else "",
-            }
-        )
+        self._rotate_writers_if_needed(sample.timestamp)
+        stamp = sample.timestamp.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+        raw_row = {
+            "timestamp": stamp,
+            "firmware": self._meta["firmware"],
+        }
+        raw_row.update(parse_pdat1_raw_columns(raw_pdat1))
+        raw_row.update(parse_psum1_raw_columns(raw_psum1))
+        if self._raw_writer is not None:
+            self._raw_writer.enqueue(raw_row)
+        if self._parsed_writer is not None:
+            self._parsed_writer.enqueue(
+                {
+                    "timestamp": stamp,
+                    "product": self._meta["product"],
+                    "serial_number": self._meta["serial_number"],
+                    "firmware": self._meta["firmware"],
+                    "session_id": self._meta["session_id"],
+                    "pfwd": sample.pfwd,
+                    "pref": sample.pref,
+                    "c1": sample.c1,
+                    "c2": sample.c2,
+                    "vpp": sample.vpp,
+                    "dc_bias": sample.dc_bias,
+                    "pout": sample.pout,
+                    "iout": sample.iout,
+                    "rs": sample.rs if sample.rs is not None else "",
+                    "xs": sample.xs if sample.xs is not None else "",
+                }
+            )
         self.sample_added.emit(sample)
 
     def window(self, seconds: int) -> list[EvcSample]:
@@ -340,5 +433,7 @@ class DataController(QObject):
         return self._samples[-1] if self._samples else None
 
     def close(self):
-        self._raw_writer.close()
-        self._parsed_writer.close()
+        if self._raw_writer is not None:
+            self._raw_writer.close()
+        if self._parsed_writer is not None:
+            self._parsed_writer.close()

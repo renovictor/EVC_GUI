@@ -1,6 +1,6 @@
 """Single source of truth for EVC GUI version information."""
 APP_NAME = "EVC GUI"
-__version__ = "1.0.3"
+__version__ = "1.0.4"
 VERSION = tuple(int(part) for part in __version__.split("."))
 COMPANY = "ASM"
 DEPARTMENT = "PEALD RF Engineering"
@@ -8,6 +8,11 @@ AUTHOR = "Victor Huang"
 CONTACT = "victor.huang@asm.com"
 
 VERSION_HISTORY = [
+    {
+        "version": "1.0.4",
+        "date": "2026-09-27",
+        "summary": "High-speed serial workflow update: 57600/230400 auto-detection with response-content validation, baud 7 switch-and-verify flow, 75 ms run command timing, 3-hour CSV rotation, expanded raw columns, and Excel-friendly millisecond timestamps.",
+    },
     {
         "version": "1.0.3",
         "date": "2026-09-27",

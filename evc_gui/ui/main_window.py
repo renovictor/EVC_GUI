@@ -2,6 +2,7 @@ import csv
 import cmath
 import logging
 import math
+import time
 from pathlib import Path
 import re
 
@@ -39,6 +40,13 @@ from evc_gui.ui.smith_chart import (
 from version import APP_NAME, COMPANY, __version__
 
 log = logging.getLogger(__name__)
+START_BAUD_CANDIDATES = (57600, 230400)
+HIGH_SPEED_BAUD = 230400
+RUN_COMMAND_TIMEOUT_S = 0.075
+HANDSHAKE_TIMEOUT_S = 1.0
+SCAN_COMMAND_TIMEOUT_S = 0.5
+POST_SWITCH_SETTLE_S = 0.35
+VER_RETRY_COUNT = 3
 
 
 class MainWindow(QMainWindow):
@@ -51,6 +59,7 @@ class MainWindow(QMainWindow):
         self.detected_product = "Unknown"
         self.detected_serial_number = ""
         self.detected_firmware = ""
+        self._active_baud = 57600
         self._device_log_ready = False
         self._worker: SerialWorker | None = None
         self._controller: DataController | None = None
@@ -86,7 +95,7 @@ class MainWindow(QMainWindow):
         self.product_value = QLabel(self.detected_product)
         self.port = QComboBox()
         self.baud = QComboBox()
-        self.baud.addItems(["9600", "19200", "38400", "57600", "115200"])
+        self.baud.addItems(["9600", "19200", "38400", "57600", "115200", "230400"])
         self.baud.setCurrentText("57600")
         self.serial_number_value = QLabel("-")
         self.refresh_btn = QPushButton("Refresh Ports")
@@ -192,9 +201,27 @@ class MainWindow(QMainWindow):
         self.start_btn.setEnabled(False)
         self.machine.transition(AppState.SCAN_EQUIPMENT, "Preparing scan sequence")
         self.machine.transition(AppState.CHECK_CONNECTION, "Opening serial port")
-        result = self.serial.connect(self.port.currentText(), int(self.baud.currentText()))
-        self.append(result.message)
-        if result.ok:
+        chosen = int(self.baud.currentText())
+        if chosen in START_BAUD_CANDIDATES:
+            candidates = [chosen] + [baud for baud in START_BAUD_CANDIDATES if baud != chosen]
+        else:
+            candidates = list(START_BAUD_CANDIDATES)
+        connected = False
+        for baud in candidates:
+            result = self.serial.connect(self.port.currentText(), baud)
+            self.append(result.message)
+            if not result.ok:
+                continue
+            if not self._query_scan_identity(setup_device_log=False, fail_on_error=False):
+                self.append(f"Identity validation failed at {baud} baud")
+                self.serial.disconnect()
+                continue
+            self.append(f"Handshake OK at {baud} baud")
+            self._active_baud = baud
+            self.baud.setCurrentText(str(baud))
+            connected = True
+            break
+        if connected:
             self.machine.transition(AppState.GETTING_START, "Communication path validated")
             self.machine.transition(AppState.IDLE, "Ready for probe or run")
             self.probe_btn.setEnabled(True)
@@ -203,7 +230,7 @@ class MainWindow(QMainWindow):
             self.refresh_btn.setEnabled(False)
             self._update_controls_for_idle()
         else:
-            self.machine.transition(AppState.ERROR, result.message)
+            self.machine.transition(AppState.ERROR, "Unable to communicate at 57600 or 230400 baud")
             self.start_btn.setEnabled(True)
             self._update_controls_for_idle()
 
@@ -231,36 +258,10 @@ class MainWindow(QMainWindow):
                 self.append(f"Logging switched to {self.log_file.name}")
             self.append("Demo mode enabled: generating synthetic pdat1/psum1 stream.")
         else:
-            ver_result = self.serial.send_command("ver")
-            if not ver_result.ok:
-                self.machine.transition(AppState.ERROR, ver_result.message)
-                self.append(ver_result.message)
+            if not self._query_scan_identity(setup_device_log=True, fail_on_error=True):
                 return
-            self.append(f"ver response:\n{ver_result.response}")
-            product = self._extract_product_type(ver_result.response)
-            if product:
-                self.detected_product = product
-                self.product_value.setText(product)
-                self.append(f"Detected product type: {product}")
-            firmware = self._extract_firmware(ver_result.response)
-            if firmware:
-                self.detected_firmware = firmware
-                self.append(f"Detected firmware: {firmware}")
-
-            sn_result = self.serial.send_command("sn")
-            if not sn_result.ok:
-                self.machine.transition(AppState.ERROR, sn_result.message)
-                self.append(sn_result.message)
+            if not self._switch_to_high_speed():
                 return
-            self.append(f"sn response:\n{sn_result.response}")
-            serial_number = self._extract_unit_serial(sn_result.response)
-            if serial_number:
-                self.detected_serial_number = serial_number
-                self.serial_number_value.setText(serial_number)
-                if not self._device_log_ready:
-                    self.log_file = configure_logging(f"evc_gui_{serial_number}")
-                    self._device_log_ready = True
-                    self.append(f"Logging switched to {self.log_file.name}")
 
         self.machine.transition(AppState.CHECK_CONNECTION, "Validate existing connection")
         self.machine.transition(AppState.GETTING_START, "Prepare monitoring")
@@ -304,11 +305,101 @@ class MainWindow(QMainWindow):
             serial_number=self.detected_serial_number,
             firmware=self.detected_firmware,
         )
-        self._worker = SerialWorker(self.serial, demo_mode=demo_mode)
+        command_timeout = RUN_COMMAND_TIMEOUT_S if not demo_mode else 0.8
+        self._worker = SerialWorker(self.serial, demo_mode=demo_mode, command_timeout=command_timeout)
         self._worker.sample_ready.connect(self._on_sample_ready)
         self._worker.worker_error.connect(self._on_worker_error)
         self._worker.start_polling()
         self._chart_timer.start()
+
+    def _switch_to_high_speed(self) -> bool:
+        if self._active_baud == HIGH_SPEED_BAUD:
+            ver_result = self._query_ver_with_retry()
+            if not ver_result.ok:
+                self.machine.transition(AppState.ERROR, ver_result.message)
+                self.append(f"High-speed validation failed: {ver_result.message}")
+                return False
+            self.append("Already at 230400 baud and communication verified")
+            return True
+        self.append("Switching unit baud to 230400 via 'baud 7'")
+        baud_result = self.serial.send_command("baud 7", timeout=HANDSHAKE_TIMEOUT_S)
+        if not baud_result.ok:
+            self.machine.transition(AppState.ERROR, baud_result.message)
+            self.append(f"Failed to issue baud 7: {baud_result.message}")
+            return False
+        time.sleep(POST_SWITCH_SETTLE_S)
+        self.serial.disconnect()
+        reconnect = self.serial.connect(self.port.currentText(), HIGH_SPEED_BAUD, timeout=HANDSHAKE_TIMEOUT_S)
+        self.append(reconnect.message)
+        if not reconnect.ok:
+            self.machine.transition(AppState.ERROR, reconnect.message)
+            return False
+        ver_result = self._query_ver_with_retry()
+        if not ver_result.ok:
+            self.machine.transition(AppState.ERROR, ver_result.message)
+            self.append(f"Post-switch ver failed: {ver_result.message}")
+            return False
+        self._active_baud = HIGH_SPEED_BAUD
+        self.baud.setCurrentText(str(HIGH_SPEED_BAUD))
+        self.append(f"High-speed ver response:\n{ver_result.response}")
+        return True
+
+    def _query_ver_with_retry(self):
+        last_result = None
+        for _ in range(VER_RETRY_COUNT):
+            result = self.serial.send_command("ver", timeout=HANDSHAKE_TIMEOUT_S)
+            if result.ok:
+                return result
+            last_result = result
+            time.sleep(0.1)
+        return last_result
+
+    def _query_scan_identity(self, setup_device_log: bool, fail_on_error: bool) -> bool:
+        ver_result = self.serial.send_command("ver", timeout=SCAN_COMMAND_TIMEOUT_S)
+        if not ver_result.ok:
+            if fail_on_error:
+                self.machine.transition(AppState.ERROR, ver_result.message)
+            self.append(ver_result.message)
+            return False
+        self.append(f"ver response:\n{ver_result.response}")
+        product = self._extract_product_type(ver_result.response)
+        if product:
+            self.detected_product = product
+            self.product_value.setText(product)
+            self.append(f"Detected product type: {product}")
+        firmware = self._extract_firmware(ver_result.response)
+        if firmware:
+            self.detected_firmware = firmware
+            self.append(f"Detected firmware: {firmware}")
+        if not product and not firmware:
+            message = "Invalid ver response content"
+            if fail_on_error:
+                self.machine.transition(AppState.ERROR, message)
+            self.append(message)
+            return False
+
+        sn_result = self.serial.send_command("sn", timeout=SCAN_COMMAND_TIMEOUT_S)
+        if not sn_result.ok:
+            if fail_on_error:
+                self.machine.transition(AppState.ERROR, sn_result.message)
+            self.append(sn_result.message)
+            return False
+        self.append(f"sn response:\n{sn_result.response}")
+        serial_number = self._extract_unit_serial(sn_result.response)
+        if serial_number:
+            self.detected_serial_number = serial_number
+            self.serial_number_value.setText(serial_number)
+            if setup_device_log and not self._device_log_ready:
+                self.log_file = configure_logging(f"evc_gui_{serial_number}")
+                self._device_log_ready = True
+                self.append(f"Logging switched to {self.log_file.name}")
+        else:
+            message = "Invalid sn response content"
+            if fail_on_error:
+                self.machine.transition(AppState.ERROR, message)
+            self.append(message)
+            return False
+        return True
 
     def _stop_phase2_pipeline(self):
         self._chart_timer.stop()

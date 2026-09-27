@@ -68,7 +68,7 @@ class SerialService:
             self._serial.reset_input_buffer()
             self._serial.write(f"{command}\r\n".encode("ascii", errors="ignore"))
             self._serial.flush()
-            self._serial.timeout = 0.1
+            self._serial.timeout = min(0.1, max(0.01, timeout / 2))
             while time.monotonic() < deadline:
                 raw = self._serial.readline()
                 if not raw:
