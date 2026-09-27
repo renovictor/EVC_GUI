@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.0.3] - 2026-09-27
+
+### Added
+- Cached contour database for Smith Chart boundary reference lines.
+- Busy-state indicator for first-time contour download with a dedicated `DOWNLOADING_CONTOUR` machine state.
+- One-time `zpar` contour download flow: subsequent contour toggles reuse cached data instead of re-downloading.
+
+### Fixed
+- Smith Chart contour now plots each boundary line as its own series to prevent multi-line polyline corruption.
+- Contour download state no longer appears as `IDLE` while data is being fetched.
+- Demo mode is blocked from contour download to avoid invalid data acquisition.
+
+### Changed
+- Contour sampling uses real capacitor index resolution instead of coarse/fine percentage approximation.
+
 ## [1.0.2] - 2026-09-27
 
 ### Added

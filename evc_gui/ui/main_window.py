@@ -1,9 +1,13 @@
+import csv
+import cmath
 import logging
+import math
 from pathlib import Path
 import re
 
 from PySide6.QtCore import Qt, QTimer, Slot
 from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -26,6 +30,12 @@ from evc_gui.services.phase2 import DataController, SerialWorker
 from evc_gui.services.serial_service import SerialService
 from evc_gui.state_machine import AppState, EvcStateMachine
 from evc_gui.ui.power_scope import PowerScopeWidget
+from evc_gui.ui.smith_chart import (
+    SmithChartWidget,
+    ZParameters,
+    calculate_load_impedance_from_z_params,
+    impedance_to_gamma,
+)
 from version import APP_NAME, COMPANY, __version__
 
 log = logging.getLogger(__name__)
@@ -81,7 +91,7 @@ class MainWindow(QMainWindow):
         self.serial_number_value = QLabel("-")
         self.refresh_btn = QPushButton("Refresh Ports")
         self.start_btn = QPushButton("Start / Connect")
-        self.demo_mode_check = QCheckBox("Demo Mode (Phase 2)")
+        self.demo_mode_check = QCheckBox("Demo Mode (Phase 2/3)")
         self.probe_btn = QPushButton("Probe")
         self.run_btn = QPushButton("Run")
         self.abort_btn = QPushButton("Abort")
@@ -128,7 +138,9 @@ class MainWindow(QMainWindow):
 
         self.power_scope = PowerScopeWidget()
         tabs.addTab(self.power_scope, "Power Scope")
-        for name, note in [("Smith Chart", "Phase 3 placeholder"), ("Future", "Phase 4 extension area")]:
+        self.smith_chart = SmithChartWidget()
+        tabs.addTab(self.smith_chart, "Smith Chart")
+        for name, note in [("Future", "Phase 4 extension area")]:
             page = QWidget()
             lay = QVBoxLayout(page)
             label = QLabel(note)
@@ -139,6 +151,7 @@ class MainWindow(QMainWindow):
         self.refresh_btn.clicked.connect(self.refresh_ports)
         self.start_btn.clicked.connect(self.start_connection)
         self.demo_mode_check.toggled.connect(self._on_demo_mode_toggled)
+        self.smith_chart.contour_check.toggled.connect(self._on_contour_toggled)
         self.probe_btn.clicked.connect(self.probe)
         self.run_btn.clicked.connect(self.run_monitoring)
         self.abort_btn.clicked.connect(self.abort)
@@ -199,6 +212,8 @@ class MainWindow(QMainWindow):
 
     def run_monitoring(self):
         demo_mode = self.demo_mode_check.isChecked()
+        self.smith_chart.reset_points()
+        self.smith_chart.set_demo_mode(demo_mode)
         if not demo_mode and not self.serial.connected:
             QMessageBox.warning(self, "Not Connected", "Connect to a COM port first.")
             return
@@ -256,6 +271,8 @@ class MainWindow(QMainWindow):
         self.probe_btn.setEnabled(False)
         self.start_btn.setEnabled(False)
         self.demo_mode_check.setEnabled(False)
+        if self.smith_chart.contour_check.isChecked():
+            self.smith_chart.show_contour(True)
         self._start_phase2_pipeline(demo_mode=demo_mode)
         if demo_mode:
             self.append("RUN entered. Feeding demo data into Power Scope.")
@@ -264,12 +281,14 @@ class MainWindow(QMainWindow):
 
     def abort(self):
         self._stop_phase2_pipeline()
+        self.smith_chart.set_demo_mode(self.demo_mode_check.isChecked())
         if self.machine.state == AppState.RUN:
             self.machine.transition(AppState.IDLE, "User abort")
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
         self.abort_btn.setEnabled(False)
         self.demo_mode_check.setEnabled(True)
+        self.smith_chart.show_contour(self.smith_chart.contour_check.isChecked())
         self._update_controls_for_idle()
         self.append("Run aborted safely")
 
@@ -313,6 +332,10 @@ class MainWindow(QMainWindow):
         if not self._controller:
             return
         self._controller.append_sample(sample, pdat_line, psum_line)
+        if self.demo_mode_check.isChecked():
+            self.smith_chart.append_demo_point()
+        else:
+            self.smith_chart.update_impedance(sample.rs, sample.xs)
         self.power_scope.update_latest(sample)
 
     @Slot(str)
@@ -320,15 +343,257 @@ class MainWindow(QMainWindow):
         self.append(f"Phase 2 worker: {message}")
 
     @Slot(bool)
-    def _on_demo_mode_toggled(self, _: bool):
+    def _on_demo_mode_toggled(self, enabled: bool):
+        self.smith_chart.set_demo_mode(enabled)
         self._update_controls_for_idle()
+    
+    @Slot(bool)
+    def _on_contour_toggled(self, enabled: bool):
+        """Handle contour checkbox toggle to load and plot Z-parameters."""
+        if not enabled:
+            self.smith_chart.show_contour(False)
+            return
+
+        if self.machine.state == AppState.RUN:
+            self.smith_chart.show_contour(True)
+            return
+
+        if self.machine.state == AppState.DOWNLOADING_CONTOUR:
+            return
+
+        if self.smith_chart._contour_cache:
+            self.smith_chart.show_contour(True)
+            return
+
+        if self.demo_mode_check.isChecked():
+            self.append("Demo mode can only show cached contour data; load contour on a real device first.")
+            self.smith_chart.contour_check.setChecked(False)
+            return
+
+        if not self.serial.connected:
+            self.append("Connect to device first to plot contour")
+            self.smith_chart.contour_check.setChecked(False)
+            return
+
+        if not self.machine.transition(AppState.DOWNLOADING_CONTOUR, "Downloading contour data"):
+            return
+        self.state_label.setText(AppState.DOWNLOADING_CONTOUR.name)
+        QApplication.processEvents()
+        self._load_and_plot_contour()
 
     def _update_controls_for_idle(self):
         demo_mode = self.demo_mode_check.isChecked()
         if self.machine.state == AppState.RUN:
             return
+        if self.machine.state == AppState.DOWNLOADING_CONTOUR:
+            self.run_btn.setEnabled(False)
+            self.probe_btn.setEnabled(False)
+            return
         self.run_btn.setEnabled(demo_mode or self.serial.connected)
         self.probe_btn.setEnabled(self.serial.connected and not demo_mode)
+    
+    @staticmethod
+    def _pct_to_cap_position(pct: int) -> int:
+        """Convert percentage to the actual capacitor position index in the 0..447 range."""
+        min_pos = 0
+        max_pos = 7 * 64 - 1
+        return max(min_pos, min(max_pos, int(round((pct / 100.0) * max_pos))))
+
+    @staticmethod
+    def _cap_position_to_coarse_fine(position: int) -> tuple[int, int]:
+        """Map 0..447 position to coarse/fine code, where each coarse step is 64 counts."""
+        position = max(0, min(position, 7 * 64 - 1))
+        coarse, fine = divmod(position, 64)
+        return coarse, fine
+
+    def _load_and_plot_contour(self):
+        """Download contour data once, cache it, then plot from cache."""
+        if self.smith_chart._contour_cache:
+            self.smith_chart.show_contour(True)
+            self.append("Contour cache already loaded; plotting from cached data.")
+            return
+
+        self.append("Loading Z-parameters for contour plot (edge positions)...")
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        self.setEnabled(False)
+        self.state_label.setText(AppState.DOWNLOADING_CONTOUR.name)
+
+        try:
+            z_params_list = []
+            contour_rows = []
+
+            # Sample at 2% increments in the actual 448-count capacitance space.
+            percentages = list(range(0, 101, 2))
+
+            self.append("Querying f1 band edge positions...")
+
+            for line_name, fixed_c1, fixed_c2, reverse in [
+                ("Line 1", 0, None, False),
+                ("Line 2", None, 6 * 64 + 63, False),
+                ("Line 3", 6 * 64 + 63, None, True),
+                ("Line 4", None, 0, True),
+            ]:
+                line_percentages = list(reversed(percentages)) if reverse else percentages
+                for pct in line_percentages:
+                    pos = self._pct_to_cap_position(pct)
+                    c1_position = pos if fixed_c1 is None else fixed_c1
+                    c2_position = pos if fixed_c2 is None else fixed_c2
+                    c1_coarse, c1_fine = self._cap_position_to_coarse_fine(c1_position)
+                    c2_coarse, c2_fine = self._cap_position_to_coarse_fine(c2_position)
+                    cmd = f"zpar show f1 {c1_coarse} {c1_fine} {c2_coarse} {c2_fine}"
+                    z_params = self._query_and_parse_zpar(cmd)
+                    if not z_params:
+                        continue
+
+                    z_params_list.append(z_params)
+                    load_r, load_x = calculate_load_impedance_from_z_params(z_params)
+                    gamma = impedance_to_gamma(load_r, load_x)
+                    contour_rows.append(
+                        {
+                            "line": line_name,
+                            "pct": pct,
+                            "c1_coarse": c1_coarse,
+                            "c1_fine": c1_fine,
+                            "c2_coarse": c2_coarse,
+                            "c2_fine": c2_fine,
+                            "cmd": cmd,
+                            "z11_r": z_params.z11_r,
+                            "z11_i": z_params.z11_i,
+                            "z21_r": z_params.z21_r,
+                            "z21_i": z_params.z21_i,
+                            "z12_r": z_params.z12_r,
+                            "z12_i": z_params.z12_i,
+                            "z22_r": z_params.z22_r,
+                            "z22_i": z_params.z22_i,
+                            "s22_r": z_params.z22_r,
+                            "s22_i": z_params.z22_i,
+                            "s22_mag": abs(complex(z_params.z22_r, z_params.z22_i)),
+                            "s22_phase_deg": math.degrees(cmath.phase(complex(z_params.z22_r, z_params.z22_i))),
+                            "z_load_r": load_r,
+                            "z_load_x": load_x,
+                            "gamma_real": gamma.real,
+                            "gamma_imag": gamma.imag,
+                            "gamma_mag": abs(gamma),
+                            "gamma_phase_deg": math.degrees(cmath.phase(gamma)),
+                        }
+                    )
+                    if line_name == "Line 3":
+                        self.append(
+                            f"{line_name} pct={pct:>3}% -> C1=({c1_coarse},{c1_fine}), C2=({c2_coarse},{c2_fine}) | "
+                            f"Z=({load_r:.3f},{load_x:.3f}) | gamma=({gamma.real:.4f},{gamma.imag:.4f}) | |gamma|={abs(gamma):.4f}"
+                        )
+
+            if contour_rows:
+                export_path = self._export_contour_csv(contour_rows)
+                self.append(f"Contour CSV exported: {export_path}")
+                self.append(f"Loaded {len(z_params_list)} Z-parameter edge points for contour")
+                groups = {}
+                for row in contour_rows:
+                    groups.setdefault(row["line"], []).append(row)
+                contour_cache = {}
+                self.smith_chart.plot_z_parameter_contour([], clear=True)
+                for line_name, line_rows in groups.items():
+                    line_z_params = []
+                    for row in line_rows:
+                        z_params = self._query_and_parse_zpar(row["cmd"])
+                        if z_params:
+                            line_z_params.append(z_params)
+                    contour_cache[line_name] = line_z_params
+                    if line_z_params:
+                        self.smith_chart.plot_z_parameter_contour(line_z_params, clear=False)
+                self.smith_chart.set_contour_cache(contour_cache)
+                self.smith_chart.show_contour(True)
+            else:
+                self.append("No Z-parameters loaded - contour plot failed")
+                self.smith_chart.contour_check.setChecked(False)
+        finally:
+            QApplication.restoreOverrideCursor()
+            self.setEnabled(True)
+            if self.machine.state == AppState.DOWNLOADING_CONTOUR:
+                self.machine.transition(AppState.IDLE, "Contour download complete")
+
+    def _export_contour_csv(self, contour_rows: list[dict]) -> Path:
+        """Export contour lines to CSV for external plotting in Excel or Python."""
+        export_dir = self.log_file.parent if self.log_file else Path.cwd()
+        export_dir.mkdir(parents=True, exist_ok=True)
+        file_path = export_dir / f"contour_export_{self.detected_serial_number or 'demo'}_{len(contour_rows)}pts.csv"
+
+        fieldnames = [
+            "line",
+            "pct",
+            "c1_coarse",
+            "c1_fine",
+            "c2_coarse",
+            "c2_fine",
+            "cmd",
+            "z11_r",
+            "z11_i",
+            "z21_r",
+            "z21_i",
+            "z12_r",
+            "z12_i",
+            "z22_r",
+            "z22_i",
+            "s22_r",
+            "s22_i",
+            "s22_mag",
+            "s22_phase_deg",
+            "z_load_r",
+            "z_load_x",
+            "gamma_real",
+            "gamma_imag",
+            "gamma_mag",
+            "gamma_phase_deg",
+        ]
+
+        with file_path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fieldnames)
+            writer.writeheader()
+            for row in contour_rows:
+                writer.writerow({key: row.get(key, "") for key in fieldnames})
+
+        return file_path
+    
+    def _query_and_parse_zpar(self, cmd: str) -> ZParameters | None:
+        """Query device for Z-parameter and parse response."""
+        try:
+            result = self.serial.send_command(cmd)
+            if not result.ok:
+                return None
+            return self._parse_zpar_response(result.response)
+        except Exception:
+            return None
+    
+    @staticmethod
+    def _parse_zpar_response(response: str) -> ZParameters | None:
+        """
+        Parse 'zpar show' response to extract Z-parameters.
+        Response format:
+        (C1: x, f1) (C2: x, f2)   Z11 = (r, i)  Z21 = (r, i)  Z12 = (r, i)  Z22 = (r, i)
+        """
+        import re
+        
+        try:
+            z11_match = re.search(r'Z11\s*=\s*\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)', response)
+            z21_match = re.search(r'Z21\s*=\s*\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)', response)
+            z12_match = re.search(r'Z12\s*=\s*\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)', response)
+            z22_match = re.search(r'Z22\s*=\s*\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)', response)
+            
+            if all([z11_match, z21_match, z12_match, z22_match]):
+                return ZParameters(
+                    z11_r=float(z11_match.group(1)),
+                    z11_i=float(z11_match.group(2)),
+                    z21_r=float(z21_match.group(1)),
+                    z21_i=float(z21_match.group(2)),
+                    z12_r=float(z12_match.group(1)),
+                    z12_i=float(z12_match.group(2)),
+                    z22_r=float(z22_match.group(1)),
+                    z22_i=float(z22_match.group(2)),
+                )
+        except (ValueError, AttributeError):
+            pass
+        
+        return None
 
     def _refresh_scope(self):
         if not self._controller:

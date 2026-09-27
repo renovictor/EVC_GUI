@@ -55,7 +55,7 @@ class SerialService:
             log.exception("Serial probe failed")
             return ConnectionResult(False, f"Probe failed: {exc}")
 
-    def send_command(self, command: str, timeout: float = 3.0) -> CommandResult:
+    def send_command(self, command: str, timeout: float = 1.0) -> CommandResult:
         if not self.connected:
             return CommandResult(False, "Serial port is not connected", "")
         command = command.strip()
@@ -68,7 +68,7 @@ class SerialService:
             self._serial.reset_input_buffer()
             self._serial.write(f"{command}\r\n".encode("ascii", errors="ignore"))
             self._serial.flush()
-            self._serial.timeout = 0.2
+            self._serial.timeout = 0.1
             while time.monotonic() < deadline:
                 raw = self._serial.readline()
                 if not raw:
