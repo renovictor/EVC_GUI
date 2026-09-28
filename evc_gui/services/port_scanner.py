@@ -22,8 +22,8 @@ class DetectedDevice:
 class PortScanner:
     """Scans available COM ports to detect EVC devices."""
     
-    # Baud rates to try (ordered by priority)
-    BAUD_CANDIDATES = (57600, 230400, 19200, 38400, 115200, 9600)
+    # Baud rates to try (ordered by priority - fast rates first, then slower)
+    BAUD_CANDIDATES = (57600, 230400, 115200, 38400, 19200, 9600)
     SCAN_TIMEOUT = 0.5
     MAX_WORKERS = 8
     
