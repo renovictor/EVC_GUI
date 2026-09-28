@@ -142,6 +142,7 @@ class MainWindow(QMainWindow):
         form.addWidget(QLabel("State"), 11, 0)
         form.addWidget(self.state_label, 11, 1)
         self.progress = QProgressBar()
+        self.progress.setMinimumHeight(40)  # Make progress indicator noticeably larger
         form.addWidget(self.progress, 12, 0, 1, 2)
         form.setRowStretch(13, 1)
         body.addWidget(control, 0)
@@ -696,6 +697,10 @@ class MainWindow(QMainWindow):
         QApplication.setOverrideCursor(Qt.WaitCursor)
         self.setEnabled(False)
         self.state_label.setText(AppState.DOWNLOADING_CONTOUR.name)
+        
+        # Show progress bar with indeterminate animation
+        self.progress.setRange(0, 0)
+        self.progress.show()
 
         try:
             z_params_list = []
@@ -711,6 +716,11 @@ class MainWindow(QMainWindow):
             if self._is_quantum_family():
                 zpar_bands = ["hf", "lf"]
             self.append(f"Querying {'/'.join(zpar_bands)} band edge positions...")
+            
+            # Calculate total queries for progress tracking
+            total_queries = len(zpar_bands) * 4 * len(percentages)
+            current_query = 0
+            self.progress.setRange(0, total_queries)
 
             for band in zpar_bands:
                 for line_name, fixed_c1, fixed_c2, reverse in [
@@ -728,6 +738,12 @@ class MainWindow(QMainWindow):
                         c2_coarse, c2_fine = self._cap_position_to_coarse_fine(c2_position)
                         cmd = f"zpar show {band} {c1_coarse} {c1_fine} {c2_coarse} {c2_fine}"
                         z_params = self._query_and_parse_zpar(cmd)
+                        
+                        # Update progress bar
+                        current_query += 1
+                        self.progress.setValue(current_query)
+                        QApplication.processEvents()
+                        
                         if not z_params:
                             continue
 
@@ -811,6 +827,9 @@ class MainWindow(QMainWindow):
         finally:
             QApplication.restoreOverrideCursor()
             self.setEnabled(True)
+            self.progress.hide()  # Hide progress bar after download completes
+            self.progress.setRange(0, 100)  # Reset to normal range
+            self.progress.setValue(0)  # Reset progress value
             if self.machine.state == AppState.DOWNLOADING_CONTOUR:
                 self.machine.transition(AppState.IDLE, "Contour download complete")
 
