@@ -114,11 +114,13 @@ class DeviceSelectionDialog(QDialog):
             self.table.selectRow(0)
         
         # Set column widths for better visibility
-        self.table.setColumnWidth(0, 90)   # COM Port
-        self.table.setColumnWidth(1, 120)  # Product
-        self.table.setColumnWidth(2, 150)  # Serial Number
-        self.table.setColumnWidth(3, 280)  # Firmware
-        self.table.setColumnWidth(4, 100)  # Baud Rate
+        self.table.setColumnWidth(0, 80)   # COM Port
+        self.table.setColumnWidth(1, 100)  # Product
+        self.table.setColumnWidth(2, 120)  # Serial Number
+        self.table.setColumnWidth(3, 300)  # Firmware
+        self.table.setColumnWidth(4, 90)   # Baud Rate
+        
+        layout.addWidget(self.table)
         
         # Buttons
         button_layout = QHBoxLayout()
