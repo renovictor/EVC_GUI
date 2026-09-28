@@ -27,7 +27,7 @@ class DeviceSelectionDialog(QDialog):
         self.selected_device: Optional[DetectedDevice] = None
         self.use_manual: bool = False
         self.setWindowTitle("Select EVC Device")
-        self.setMinimumWidth(750)
+        self.setMinimumWidth(950)  # Wider to accommodate expanded columns
         self.setMinimumHeight(450)
         self.setModal(True)
         # Apply dark theme styling to dialog
@@ -63,7 +63,7 @@ class DeviceSelectionDialog(QDialog):
         
         # Info text
         info = QLabel(f"Found {len(self.devices)} device(s). Select one to connect:")
-        info.setStyleSheet("font-size: 12px; color: #eaf1ff; margin-bottom: 8px;")
+        info.setStyleSheet("font-size: 12px; color: #ffffff; margin-bottom: 8px;")
         layout.addWidget(info)
         
         # Table with detected devices
@@ -113,9 +113,12 @@ class DeviceSelectionDialog(QDialog):
         if self.devices:
             self.table.selectRow(0)
         
-        # Resize columns to content
-        self.table.resizeColumnsToContents()
-        layout.addWidget(self.table)
+        # Set column widths for better visibility
+        self.table.setColumnWidth(0, 90)   # COM Port
+        self.table.setColumnWidth(1, 120)  # Product
+        self.table.setColumnWidth(2, 150)  # Serial Number
+        self.table.setColumnWidth(3, 280)  # Firmware
+        self.table.setColumnWidth(4, 100)  # Baud Rate
         
         # Buttons
         button_layout = QHBoxLayout()
