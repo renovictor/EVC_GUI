@@ -78,6 +78,9 @@ class PortScanner:
             device = self._probe_port(port, baudrate)
             if device:
                 return device
+            # Add delay between attempts to let device settle
+            # This prevents device confusion when switching baud rates rapidly
+            time.sleep(0.1)
         return None
     
     def _probe_port(self, port: str, baudrate: int) -> Optional[DetectedDevice]:
@@ -102,6 +105,15 @@ class PortScanner:
             return None
         
         try:
+            # Reset device state by clearing buffers and sending ENTER
+            # This ensures we start with a clean slate (especially important when switching baud rates)
+            service._serial.reset_input_buffer()
+            service._serial.reset_output_buffer()
+            service._serial.write(b"\r\n")
+            service._serial.flush()
+            time.sleep(0.05)
+            service._serial.reset_input_buffer()
+            
             # Query version info
             ver_result = service.send_command("ver", timeout=self.SCAN_TIMEOUT)
             if not ver_result.ok:

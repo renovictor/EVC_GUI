@@ -80,16 +80,20 @@ class DeviceSelectionDialog(QDialog):
             QTableWidget {
                 background-color: #172542;
                 alternate-background-color: #1a2d4a;
-                color: #eaf1ff;
+                color: #000000;
                 gridline-color: #47648f;
             }
             QTableWidget::item {
                 padding: 4px;
-                color: #eaf1ff;
+                color: #000000;
+            }
+            QTableWidget::item:selected {
+                background-color: #ff1493;
+                color: #ffffff;
             }
             QHeaderView::section {
                 background-color: #253858;
-                color: #eaf1ff;
+                color: #ffffff;
                 padding: 4px;
                 border: none;
                 font-weight: bold;
