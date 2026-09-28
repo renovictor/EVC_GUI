@@ -98,6 +98,7 @@ class PowerScopeWidget(QWidget):
         self._checks: dict[str, QCheckBox] = {}
         self._value_edits: dict[str, QLineEdit] = {}
         self._axis_scale_overrides: dict[str, tuple[float, float, float]] = {}
+        self._quantum_lf_available = False
         self._axes_usage = {
             "power": {"pfwd", "pref", "pout"},
             "cap": {"c1", "c2"},
@@ -134,6 +135,11 @@ class PowerScopeWidget(QWidget):
         self.time_window = QComboBox()
         self.time_window.addItems(["10 sec", "60 sec"])
         trace_grid.addWidget(self.time_window, len(self.METRICS) + 1, 0)
+        trace_grid.addWidget(QLabel("Band"), len(self.METRICS) + 2, 0)
+        self.band_selector = QComboBox()
+        self.band_selector.addItems(["HF", "LF"])
+        self.band_selector.setEnabled(False)
+        trace_grid.addWidget(self.band_selector, len(self.METRICS) + 3, 0)
         top.addWidget(trace_box, 0)
         root.addLayout(top)
 
@@ -192,16 +198,8 @@ class PowerScopeWidget(QWidget):
     def update_latest(self, sample: EvcSample | None):
         if not sample:
             return
-        mapping = {
-            "pfwd": sample.pfwd,
-            "pref": sample.pref,
-            "c1": sample.c1,
-            "c2": sample.c2,
-            "vpp": sample.vpp,
-            "dc_bias": sample.dc_bias,
-            "pout": sample.pout,
-            "iout": sample.iout,
-        }
+        self._update_band_availability(sample)
+        mapping = self._sample_mapping(sample)
         for key, value in mapping.items():
             suffix = "%" if key in {"c1", "c2"} else ""
             self._value_edits[key].setText(f"{value:.2f}{suffix}")
@@ -214,16 +212,8 @@ class PowerScopeWidget(QWidget):
             series.clear()
         for sample in samples:
             stamp = _to_msec(sample.timestamp)
-            values = {
-                "pfwd": sample.pfwd,
-                "pref": sample.pref,
-                "c1": sample.c1,
-                "c2": sample.c2,
-                "vpp": sample.vpp,
-                "dc_bias": sample.dc_bias,
-                "pout": sample.pout,
-                "iout": sample.iout,
-            }
+            self._update_band_availability(sample)
+            values = self._sample_mapping(sample)
             for key, value in values.items():
                 key_values[key].append(value)
                 if self._checks[key].isChecked():
@@ -283,6 +273,47 @@ class PowerScopeWidget(QWidget):
         if key in self._axes_usage["current"]:
             return self.axis_iout
         return self.axis_power
+
+    def _is_lf_selected(self) -> bool:
+        return self.band_selector.isEnabled() and self.band_selector.currentText() == "LF"
+
+    def _update_band_availability(self, sample: EvcSample):
+        has_lf = (
+            sample.lf_pfwd is not None
+            or sample.lf_pref is not None
+            or sample.lf_c1 is not None
+            or sample.lf_c2 is not None
+            or sample.lf_vpp is not None
+            or sample.lf_dc_bias is not None
+            or sample.lf_pout is not None
+            or sample.lf_iout is not None
+        )
+        if has_lf and not self._quantum_lf_available:
+            self._quantum_lf_available = True
+            self.band_selector.setEnabled(True)
+
+    def _sample_mapping(self, sample: EvcSample) -> dict[str, float]:
+        if self._is_lf_selected():
+            return {
+                "pfwd": sample.lf_pfwd if sample.lf_pfwd is not None else sample.pfwd,
+                "pref": sample.lf_pref if sample.lf_pref is not None else sample.pref,
+                "c1": sample.lf_c1 if sample.lf_c1 is not None else sample.c1,
+                "c2": sample.lf_c2 if sample.lf_c2 is not None else sample.c2,
+                "vpp": sample.lf_vpp if sample.lf_vpp is not None else sample.vpp,
+                "dc_bias": sample.lf_dc_bias if sample.lf_dc_bias is not None else sample.dc_bias,
+                "pout": sample.lf_pout if sample.lf_pout is not None else sample.pout,
+                "iout": sample.lf_iout if sample.lf_iout is not None else sample.iout,
+            }
+        return {
+            "pfwd": sample.pfwd,
+            "pref": sample.pref,
+            "c1": sample.c1,
+            "c2": sample.c2,
+            "vpp": sample.vpp,
+            "dc_bias": sample.dc_bias,
+            "pout": sample.pout,
+            "iout": sample.iout,
+        }
 
     def _axis_info(self, axis_key: str) -> tuple[QValueAxis, str]:
         if axis_key == "cap":

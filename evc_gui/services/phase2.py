@@ -59,6 +59,16 @@ class EvcSample:
     iout: float
     rs: float | None = None
     xs: float | None = None
+    lf_rs: float | None = None
+    lf_xs: float | None = None
+    lf_pfwd: float | None = None
+    lf_pref: float | None = None
+    lf_c1: float | None = None
+    lf_c2: float | None = None
+    lf_vpp: float | None = None
+    lf_dc_bias: float | None = None
+    lf_pout: float | None = None
+    lf_iout: float | None = None
 
 
 def _to_float(text: str) -> float:
@@ -66,6 +76,24 @@ def _to_float(text: str) -> float:
 
 
 def parse_pdat1_line(line: str) -> dict[str, float]:
+    if "HF:" in line and "LF:" in line:
+        hf_tokens, lf_tokens = _split_quantum_hf_lf_tokens(line)
+        if len(hf_tokens) < 8 or len(lf_tokens) < 8:
+            raise ValueError(f"Invalid Quantum pdat1 payload: {line}")
+        return {
+            "pfwd": _to_float(hf_tokens[0]),
+            "pref": _to_float(hf_tokens[1]),
+            "load_r": _to_float(hf_tokens[4]),
+            "load_x": _to_float(hf_tokens[5]),
+            "c1": _to_float(hf_tokens[6]),
+            "c2": _to_float(hf_tokens[7]),
+            "lf_pfwd": _to_float(lf_tokens[0]),
+            "lf_pref": _to_float(lf_tokens[1]),
+            "lf_c1": _to_float(lf_tokens[6]),
+            "lf_c2": _to_float(lf_tokens[7]),
+            "lf_load_r": _to_float(lf_tokens[4]),
+            "lf_load_x": _to_float(lf_tokens[5]),
+        }
     payload = line.split(":", 1)[1] if ":" in line else line
     values = re.findall(r"[-+]?\d+(?:\.\d+)?", payload)
     if len(values) < 8:
@@ -81,6 +109,25 @@ def parse_pdat1_line(line: str) -> dict[str, float]:
 
 
 def parse_psum1_line(line: str) -> dict[str, float]:
+    if "HF:" in line and "LF:" in line and "|" in line:
+        hf_tokens, lf_tokens = _split_quantum_hf_lf_tokens(line)
+        right_tokens = line.split("|", 1)[1].split()
+        if len(hf_tokens) < 23 or len(lf_tokens) < 23 or len(right_tokens) < 2:
+            raise ValueError(f"Incomplete Quantum psum1 payload: {line}")
+        return {
+            "rs": _to_float(hf_tokens[4]),
+            "xs": _to_float(hf_tokens[5]),
+            "vpp": _to_float(hf_tokens[14]),
+            "iout": _to_float(hf_tokens[19]),
+            "pout": _to_float(hf_tokens[21]),
+            "dc_bias": _to_float(right_tokens[1]),
+            "lf_rs": _to_float(lf_tokens[4]),
+            "lf_xs": _to_float(lf_tokens[5]),
+            "lf_vpp": _to_float(lf_tokens[14]),
+            "lf_iout": _to_float(lf_tokens[19]),
+            "lf_pout": _to_float(lf_tokens[21]),
+            "lf_dc_bias": _to_float(right_tokens[1]),
+        }
     if "|" in line:
         left, right = line.split("|", 1)
         left_tokens = left.split()
@@ -115,6 +162,11 @@ def _map_raw_tokens(headers: list[str], tokens: list[str]) -> dict[str, str]:
 
 
 def parse_pdat1_raw_columns(line: str) -> dict[str, str]:
+    if "HF:" in line and "LF:" in line:
+        hf_tokens, _ = _split_quantum_hf_lf_tokens(line)
+        if len(hf_tokens) < 8:
+            log.warning("Incomplete Quantum pdat1 raw payload: %s", line)
+        return {"Fx": "HF"} | _map_raw_tokens(PDAT1_RAW_HEADERS[1:], hf_tokens)
     fx = ""
     payload = line
     if ":" in line:
@@ -134,6 +186,12 @@ def parse_pdat1_raw_columns(line: str) -> dict[str, str]:
 
 
 def parse_psum1_raw_columns(line: str) -> dict[str, str]:
+    if "HF:" in line and "LF:" in line and "|" in line:
+        hf_tokens, _ = _split_quantum_hf_lf_tokens(line)
+        right_tokens = line.split("|", 1)[1].split()
+        if len(hf_tokens) < len(PSUM1_LEFT_RAW_HEADERS) or len(right_tokens) < len(PSUM1_RIGHT_RAW_HEADERS[:2]):
+            log.warning("Incomplete Quantum psum1 raw payload: %s", line)
+        return _map_raw_tokens(PSUM1_LEFT_RAW_HEADERS, hf_tokens) | _map_raw_tokens(PSUM1_RIGHT_RAW_HEADERS, right_tokens)
     if "|" in line:
         left, right = line.split("|", 1)
         left_tokens = left.split()
@@ -170,6 +228,15 @@ def parse_psum1_raw_columns(line: str) -> dict[str, str]:
     row["Pout"] = tokens[20] if len(tokens) > 20 else ""
     row["Eff%"] = tokens[21] if len(tokens) > 21 else ""
     return row
+
+
+def _split_quantum_hf_lf_tokens(line: str) -> tuple[list[str], list[str]]:
+    left = line.split("|", 1)[0]
+    if "HF:" not in left or "LF:" not in left:
+        return [], []
+    hf_part = left.split("HF:", 1)[1].split("LF:", 1)[0].strip()
+    lf_part = left.split("LF:", 1)[1].strip()
+    return hf_part.split(), lf_part.split()
 
 
 class SerialWorker(QThread):
@@ -236,6 +303,16 @@ class SerialWorker(QThread):
                     iout=psum_values["iout"],
                     rs=pdat_values["load_r"],
                     xs=pdat_values["load_x"],
+                    lf_rs=psum_values.get("lf_rs", pdat_values.get("lf_load_r")),
+                    lf_xs=psum_values.get("lf_xs", pdat_values.get("lf_load_x")),
+                    lf_pfwd=pdat_values.get("lf_pfwd"),
+                    lf_pref=pdat_values.get("lf_pref"),
+                    lf_c1=pdat_values.get("lf_c1"),
+                    lf_c2=pdat_values.get("lf_c2"),
+                    lf_vpp=psum_values.get("lf_vpp"),
+                    lf_dc_bias=psum_values.get("lf_dc_bias"),
+                    lf_pout=psum_values.get("lf_pout"),
+                    lf_iout=psum_values.get("lf_iout"),
                 )
             except Exception as exc:
                 self.worker_error.emit(f"Phase 2 parse error: {exc}")

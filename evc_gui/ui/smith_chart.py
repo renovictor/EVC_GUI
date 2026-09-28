@@ -113,6 +113,7 @@ class SmithChartWidget(QWidget):
     def __init__(self):
         super().__init__()
         self._gamma_points: deque[complex] = deque(maxlen=20)
+        self._lf_gamma_points: deque[complex] = deque(maxlen=20)
         self._demo_step = 0
         self._active_r = 0.0
         self._active_x = 0.0
@@ -187,6 +188,13 @@ class SmithChartWidget(QWidget):
         self.active_series.attachAxis(self.axis_x)
         self.active_series.attachAxis(self.axis_y)
 
+        self.active_lf_series = QScatterSeries()
+        self.active_lf_series.setColor(QColor("#007BFF"))
+        self.active_lf_series.setMarkerSize(12.0)
+        self.chart.addSeries(self.active_lf_series)
+        self.active_lf_series.attachAxis(self.axis_x)
+        self.active_lf_series.attachAxis(self.axis_y)
+
         self.chart_view = SmithChartView(self.chart)
         self.chart_view.setRenderHint(QPainter.Antialiasing)
         root.addWidget(self.chart_view, 1)
@@ -217,8 +225,10 @@ class SmithChartWidget(QWidget):
 
     def reset_points(self):
         self._gamma_points.clear()
+        self._lf_gamma_points.clear()
         self.history_series.clear()
         self.active_series.clear()
+        self.active_lf_series.clear()
         self._clear_contour()
         self._demo_step = 0
         self._active_r = 0.0
@@ -233,6 +243,27 @@ class SmithChartWidget(QWidget):
         self._active_r = load_r
         self._active_x = load_x
         self._append_gamma(gamma)
+        self.active_lf_series.clear()
+
+    def update_dual_impedance(
+        self,
+        hf_r: float | None,
+        hf_x: float | None,
+        lf_r: float | None,
+        lf_x: float | None,
+    ):
+        if hf_r is not None and hf_x is not None:
+            hf_gamma = impedance_to_gamma(hf_r, hf_x)
+            self._active_r = hf_r
+            self._active_x = hf_x
+            self._append_gamma(hf_gamma)
+        if lf_r is None or lf_x is None:
+            self.active_lf_series.clear()
+            return
+        lf_gamma = impedance_to_gamma(lf_r, lf_x)
+        self._lf_gamma_points.append(lf_gamma)
+        self.active_lf_series.clear()
+        self.active_lf_series.append(lf_gamma.real, lf_gamma.imag)
 
     def append_demo_point(self):
         mode = self.demo_pattern.currentText()
@@ -254,7 +285,12 @@ class SmithChartWidget(QWidget):
         self.load_r_edit.setText(f"{self._active_r:.2f}")
         self.load_x_edit.setText(f"{self._active_x:.2f}")
     
-    def plot_z_parameter_contour(self, z_params_list: list[ZParameters], clear: bool = True):
+    def plot_z_parameter_contour(
+        self,
+        z_params_list: list[ZParameters],
+        clear: bool = True,
+        color: QColor | None = None,
+    ):
         """Plot one contour line or a set of lines without clearing previous ones unless requested."""
         if clear:
             self._clear_contour()
@@ -264,7 +300,7 @@ class SmithChartWidget(QWidget):
 
         contour_series = QLineSeries()
         pen = contour_series.pen()
-        pen.setColor(QColor("#FF8800"))
+        pen.setColor(color or QColor("#FF8800"))
         pen.setWidth(2)
         contour_series.setPen(pen)
 
@@ -298,11 +334,20 @@ class SmithChartWidget(QWidget):
         self._clear_contour()
         if not enabled:
             return
-        for line_name in ["Line 1", "Line 2", "Line 3", "Line 4"]:
+        preferred_keys = list(self._contour_cache.keys())
+        if {"Line 1", "Line 2", "Line 3", "Line 4"}.issubset(self._contour_cache.keys()):
+            preferred_keys = ["Line 1", "Line 2", "Line 3", "Line 4"]
+        for line_name in preferred_keys:
             z_params_list = self._contour_cache.get(line_name, [])
             if not z_params_list:
                 continue
-            self.plot_z_parameter_contour(z_params_list, clear=False)
+            color = None
+            lowered = line_name.lower()
+            if lowered.startswith("hf "):
+                color = QColor("#FF2020")
+            elif lowered.startswith("lf "):
+                color = QColor("#007BFF")
+            self.plot_z_parameter_contour(z_params_list, clear=False, color=color)
 
     @staticmethod
     def _demo_point(mode: str, step: int) -> tuple[float, float, complex]:

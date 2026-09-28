@@ -1,6 +1,6 @@
 """Single source of truth for EVC GUI version information."""
 APP_NAME = "EVC GUI"
-__version__ = "1.0.5"
+__version__ = "26.0.0"
 VERSION = tuple(int(part) for part in __version__.split("."))
 COMPANY = "ASM"
 DEPARTMENT = "PEALD RF Engineering"
@@ -8,6 +8,11 @@ AUTHOR = "Victor Huang"
 CONTACT = "victor.huang@asm.com"
 
 VERSION_HISTORY = [
+    {
+        "version": "26.0.0",
+        "date": "2026-09-28",
+        "summary": "Quantum release: dual HF/LF parsing, Power Scope HF/LF toggle, dual-band (hf/lf) zpar contour download with shared Smith Chart plotting (HF red, LF blue), plus Chronos generation mapping, robust baud auto-scan/validation, contour automation, and usability improvements.",
+    },
     {
         "version": "1.0.5",
         "date": "2026-09-28",

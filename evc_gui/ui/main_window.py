@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 
 from PySide6.QtCore import Qt, QTimer, Slot
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -478,7 +478,10 @@ class MainWindow(QMainWindow):
         if self.demo_mode_check.isChecked():
             self.smith_chart.append_demo_point()
         else:
-            self.smith_chart.update_impedance(sample.rs, sample.xs)
+            if self._is_quantum_family():
+                self.smith_chart.update_dual_impedance(sample.rs, sample.xs, sample.lf_rs, sample.lf_xs)
+            else:
+                self.smith_chart.update_impedance(sample.rs, sample.xs)
         self.power_scope.update_latest(sample)
 
     @Slot(str)
@@ -571,6 +574,10 @@ class MainWindow(QMainWindow):
             return "Chronos 2.0"
         return "Chronos"
 
+    def _is_quantum_family(self) -> bool:
+        product = (self.detected_product or "").strip().lower()
+        return product.startswith("quantum")
+
     @staticmethod
     def _serial_prefix(serial_number: str) -> int | None:
         serial_digits = "".join(ch for ch in serial_number if ch.isdigit())
@@ -625,63 +632,68 @@ class MainWindow(QMainWindow):
             # Sample at 2% increments in the product-specific capacitance space.
             percentages = list(range(0, 101, 2))
 
-            self.append("Querying f1 band edge positions...")
+            zpar_bands = ["f1"]
+            if self._is_quantum_family():
+                zpar_bands = ["hf", "lf"]
+            self.append(f"Querying {'/'.join(zpar_bands)} band edge positions...")
 
-            for line_name, fixed_c1, fixed_c2, reverse in [
-                ("Line 1", 0, None, False),
-                ("Line 2", None, max_position, False),
-                ("Line 3", max_position, None, True),
-                ("Line 4", None, 0, True),
-            ]:
-                line_percentages = list(reversed(percentages)) if reverse else percentages
-                for pct in line_percentages:
-                    pos = self._pct_to_cap_position(pct)
-                    c1_position = pos if fixed_c1 is None else fixed_c1
-                    c2_position = pos if fixed_c2 is None else fixed_c2
-                    c1_coarse, c1_fine = self._cap_position_to_coarse_fine(c1_position)
-                    c2_coarse, c2_fine = self._cap_position_to_coarse_fine(c2_position)
-                    cmd = f"zpar show f1 {c1_coarse} {c1_fine} {c2_coarse} {c2_fine}"
-                    z_params = self._query_and_parse_zpar(cmd)
-                    if not z_params:
-                        continue
+            for band in zpar_bands:
+                for line_name, fixed_c1, fixed_c2, reverse in [
+                    ("Line 1", 0, None, False),
+                    ("Line 2", None, max_position, False),
+                    ("Line 3", max_position, None, True),
+                    ("Line 4", None, 0, True),
+                ]:
+                    line_percentages = list(reversed(percentages)) if reverse else percentages
+                    for pct in line_percentages:
+                        pos = self._pct_to_cap_position(pct)
+                        c1_position = pos if fixed_c1 is None else fixed_c1
+                        c2_position = pos if fixed_c2 is None else fixed_c2
+                        c1_coarse, c1_fine = self._cap_position_to_coarse_fine(c1_position)
+                        c2_coarse, c2_fine = self._cap_position_to_coarse_fine(c2_position)
+                        cmd = f"zpar show {band} {c1_coarse} {c1_fine} {c2_coarse} {c2_fine}"
+                        z_params = self._query_and_parse_zpar(cmd)
+                        if not z_params:
+                            continue
 
-                    z_params_list.append(z_params)
-                    load_r, load_x = calculate_load_impedance_from_z_params(z_params)
-                    gamma = impedance_to_gamma(load_r, load_x)
-                    contour_rows.append(
-                        {
-                            "line": line_name,
-                            "pct": pct,
-                            "c1_coarse": c1_coarse,
-                            "c1_fine": c1_fine,
-                            "c2_coarse": c2_coarse,
-                            "c2_fine": c2_fine,
-                            "cmd": cmd,
-                            "z11_r": z_params.z11_r,
-                            "z11_i": z_params.z11_i,
-                            "z21_r": z_params.z21_r,
-                            "z21_i": z_params.z21_i,
-                            "z12_r": z_params.z12_r,
-                            "z12_i": z_params.z12_i,
-                            "z22_r": z_params.z22_r,
-                            "z22_i": z_params.z22_i,
-                            "s22_r": z_params.z22_r,
-                            "s22_i": z_params.z22_i,
-                            "s22_mag": abs(complex(z_params.z22_r, z_params.z22_i)),
-                            "s22_phase_deg": math.degrees(cmath.phase(complex(z_params.z22_r, z_params.z22_i))),
-                            "z_load_r": load_r,
-                            "z_load_x": load_x,
-                            "gamma_real": gamma.real,
-                            "gamma_imag": gamma.imag,
-                            "gamma_mag": abs(gamma),
-                            "gamma_phase_deg": math.degrees(cmath.phase(gamma)),
-                        }
-                    )
-                    if line_name == "Line 3":
-                        self.append(
-                            f"{line_name} pct={pct:>3}% -> C1=({c1_coarse},{c1_fine}), C2=({c2_coarse},{c2_fine}) | "
-                            f"Z=({load_r:.3f},{load_x:.3f}) | gamma=({gamma.real:.4f},{gamma.imag:.4f}) | |gamma|={abs(gamma):.4f}"
+                        z_params_list.append(z_params)
+                        load_r, load_x = calculate_load_impedance_from_z_params(z_params)
+                        gamma = impedance_to_gamma(load_r, load_x)
+                        contour_rows.append(
+                            {
+                                "band": band.upper(),
+                                "line": line_name,
+                                "pct": pct,
+                                "c1_coarse": c1_coarse,
+                                "c1_fine": c1_fine,
+                                "c2_coarse": c2_coarse,
+                                "c2_fine": c2_fine,
+                                "cmd": cmd,
+                                "z11_r": z_params.z11_r,
+                                "z11_i": z_params.z11_i,
+                                "z21_r": z_params.z21_r,
+                                "z21_i": z_params.z21_i,
+                                "z12_r": z_params.z12_r,
+                                "z12_i": z_params.z12_i,
+                                "z22_r": z_params.z22_r,
+                                "z22_i": z_params.z22_i,
+                                "s22_r": z_params.z22_r,
+                                "s22_i": z_params.z22_i,
+                                "s22_mag": abs(complex(z_params.z22_r, z_params.z22_i)),
+                                "s22_phase_deg": math.degrees(cmath.phase(complex(z_params.z22_r, z_params.z22_i))),
+                                "z_load_r": load_r,
+                                "z_load_x": load_x,
+                                "gamma_real": gamma.real,
+                                "gamma_imag": gamma.imag,
+                                "gamma_mag": abs(gamma),
+                                "gamma_phase_deg": math.degrees(cmath.phase(gamma)),
+                            }
                         )
+                        if line_name == "Line 3":
+                            self.append(
+                                f"{band.upper()} {line_name} pct={pct:>3}% -> C1=({c1_coarse},{c1_fine}), C2=({c2_coarse},{c2_fine}) | "
+                                f"Z=({load_r:.3f},{load_x:.3f}) | gamma=({gamma.real:.4f},{gamma.imag:.4f}) | |gamma|={abs(gamma):.4f}"
+                            )
 
             if contour_rows:
                 export_path = self._export_contour_csv(contour_rows)
@@ -689,18 +701,33 @@ class MainWindow(QMainWindow):
                 self.append(f"Loaded {len(z_params_list)} Z-parameter edge points for contour")
                 groups = {}
                 for row in contour_rows:
-                    groups.setdefault(row["line"], []).append(row)
+                    key = f"{row.get('band', 'F1')} {row['line']}" if self._is_quantum_family() else row["line"]
+                    groups.setdefault(key, []).append(row)
                 contour_cache = {}
                 self.smith_chart.plot_z_parameter_contour([], clear=True)
                 for line_name, line_rows in groups.items():
                     line_z_params = []
                     for row in line_rows:
-                        z_params = self._query_and_parse_zpar(row["cmd"])
-                        if z_params:
-                            line_z_params.append(z_params)
+                        line_z_params.append(
+                            ZParameters(
+                                z11_r=row["z11_r"],
+                                z11_i=row["z11_i"],
+                                z21_r=row["z21_r"],
+                                z21_i=row["z21_i"],
+                                z12_r=row["z12_r"],
+                                z12_i=row["z12_i"],
+                                z22_r=row["z22_r"],
+                                z22_i=row["z22_i"],
+                            )
+                        )
                     contour_cache[line_name] = line_z_params
                     if line_z_params:
-                        self.smith_chart.plot_z_parameter_contour(line_z_params, clear=False)
+                        color = None
+                        if line_name.lower().startswith("hf "):
+                            color = QColor("#FF2020")
+                        elif line_name.lower().startswith("lf "):
+                            color = QColor("#007BFF")
+                        self.smith_chart.plot_z_parameter_contour(line_z_params, clear=False, color=color)
                 self.smith_chart.set_contour_cache(contour_cache)
                 self.smith_chart.show_contour(show_after_load)
             else:
@@ -719,6 +746,7 @@ class MainWindow(QMainWindow):
         file_path = export_dir / f"contour_export_{self.detected_serial_number or 'demo'}_{len(contour_rows)}pts.csv"
 
         fieldnames = [
+            "band",
             "line",
             "pct",
             "c1_coarse",

@@ -2,6 +2,47 @@
 
 All notable changes to this project are documented in this file.
 
+## [26.0.0] - 2026-09-28
+
+### Added
+- Quantum dual-frequency support for runtime parsing: `pdat1` and `psum1` now capture both HF and LF halves from the same response line.
+- Power Scope HF/LF selector for Quantum to switch chart/value display between HF and LF data.
+- Smith Chart dual-impedance plotting for Quantum with HF marker in red and LF marker in blue.
+- Dual-band contour download for Quantum using both `zpar show hf ...` and `zpar show lf ...`, then overlaying both on the same Smith Chart.
+- `build_exe.ps1` helper script to build one-file Windows EXE with project-standard PyInstaller settings.
+
+### Changed
+- Product naming now distinguishes Chronos generations using SN prefix: `Chronos 1` (191-195) and `Chronos 2.0` (196+).
+- Contour capacitor-grid mapping now applies Chronos generation rules (Chronos 1 uses `0..12/0..12`; Chronos 2.0 follows Tykon range).
+- Start/Connect baud detection now uses stricter `ver` content validation and multi-baud scanning order for faster wrong-baud recovery.
+- Smith contour cache/export now includes Quantum band context for HF/LF workflows.
+
+### Fixed
+- Chronos parsing compatibility for no-pipe `psum1` format.
+- `zpar show` response handling robustness (prompt timing/content parsing), eliminating false empty-contour failures.
+
+### Removed
+- Parsed Phase 2 CSV output path; Phase 2 logging remains raw CSV only.
+
+## [1.0.5] - 2026-09-28
+
+### Added
+- Automatic contour `zpar` pre-download after successful equipment scan to reduce user mis-operation before run.
+- Clickable Power Scope Y-axis scaling dialog with user-settable Min/Max/Step.
+- Smarter Start/Connect baud recovery with prioritized multi-baud scanning and stricter `ver` handshake validation.
+
+### Changed
+- Chronos product detection now labels units as `Chronos 1` (SN prefix 191-195) and `Chronos 2.0` (SN prefix >=196).
+- Contour capacitor-grid mapping is now product-generation aware: Chronos 1 uses `0..12/0..12`, while Chronos 2.0 follows Tykon range.
+- `ver` identity checks now require valid echo/content and reject prompt-only or garbled response payloads.
+
+### Fixed
+- Chronos `psum1` parsing for no-pipe format so run-time metrics and scope updates are stable.
+- `zpar show` response handling for Chronos formatting and prompt timing, preventing false "No Z-parameters loaded" failures.
+
+### Removed
+- Parsed Phase 2 CSV output path; run logging is now raw CSV only to reduce memory/storage overhead.
+
 ## [1.0.4] - 2026-09-27
 
 ### Added
