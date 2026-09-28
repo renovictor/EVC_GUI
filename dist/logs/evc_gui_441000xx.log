@@ -1,0 +1,140 @@
+2026-09-28 08:33:01,339 | INFO     | MainThread | evc_gui.ui.main_window | Logging switched to evc_gui_441000xx.log
+2026-09-28 08:33:01,346 | INFO     | MainThread | evc_gui.services.serial_service | Command 'ver' response received
+2026-09-28 08:33:01,348 | INFO     | MainThread | evc_gui.ui.main_window | Already at 230400 baud and communication verified
+2026-09-28 08:33:01,348 | INFO     | MainThread | evc_gui.state_machine | State transition SCAN_EQUIPMENT -> CHECK_CONNECTION: Validate existing connection
+2026-09-28 08:33:01,348 | INFO     | MainThread | evc_gui.ui.main_window | SCAN_EQUIPMENT -> CHECK_CONNECTION: Validate existing connection
+2026-09-28 08:33:01,348 | INFO     | MainThread | evc_gui.state_machine | State transition CHECK_CONNECTION -> GETTING_START: Prepare monitoring
+2026-09-28 08:33:01,348 | INFO     | MainThread | evc_gui.ui.main_window | CHECK_CONNECTION -> GETTING_START: Prepare monitoring
+2026-09-28 08:33:01,348 | INFO     | MainThread | evc_gui.state_machine | State transition GETTING_START -> RUN: Phase 2 data acquisition run
+2026-09-28 08:33:01,348 | INFO     | MainThread | evc_gui.ui.main_window | GETTING_START -> RUN: Phase 2 data acquisition run
+2026-09-28 08:33:01,350 | INFO     | MainThread | evc_gui.ui.main_window | RUN entered. Querying pdat1 + psum1 and updating Power Scope.
+2026-09-28 08:33:01,360 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:01,379 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:01,510 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:01,530 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:01,660 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:01,680 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:01,809 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:01,829 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:01,961 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:01,980 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:02,110 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:02,130 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:02,260 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:02,279 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:02,410 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:02,430 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:02,560 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:02,580 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:02,710 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:02,729 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:02,860 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:02,879 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:03,009 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:03,028 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:03,158 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:03,178 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:03,308 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:03,327 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:03,458 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:03,478 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:03,607 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:03,627 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:03,757 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:03,777 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:03,907 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:03,927 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:04,057 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:04,077 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:04,208 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:04,228 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:04,359 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:04,378 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:04,509 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:04,529 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:04,659 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:04,680 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:04,810 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:04,830 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:04,960 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:04,980 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:05,110 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:05,131 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:05,261 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:05,280 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:05,410 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:05,431 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:05,560 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:05,581 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:05,711 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:05,730 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:05,861 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:05,880 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:06,011 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:06,031 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:06,161 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:06,181 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:06,311 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:06,331 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:06,461 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:06,481 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:06,610 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:06,629 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:06,759 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:06,779 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:06,910 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:06,929 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:07,060 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:07,080 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:07,210 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:07,230 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:07,361 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:07,381 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:07,510 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:07,530 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:07,660 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:07,680 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:07,810 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:07,830 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:07,960 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:07,980 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:08,110 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:08,130 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:08,260 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:08,279 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:08,410 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:08,429 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:08,560 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:08,580 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:08,710 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:08,729 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:08,859 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:08,878 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:09,008 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:09,028 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:09,158 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:09,177 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:09,307 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:09,327 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:09,458 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:09,478 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:09,608 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:09,627 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:09,757 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:09,777 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:09,906 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:09,926 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:10,055 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:10,075 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:10,206 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:10,227 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:10,360 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'pdat1' response received
+2026-09-28 08:33:10,379 | INFO     | Dummy-2 | evc_gui.services.serial_service | Command 'psum1' response received
+2026-09-28 08:33:10,502 | INFO     | MainThread | evc_gui.state_machine | State transition RUN -> IDLE: User abort
+2026-09-28 08:33:10,502 | INFO     | MainThread | evc_gui.ui.main_window | RUN -> IDLE: User abort
+2026-09-28 08:33:10,505 | INFO     | MainThread | evc_gui.ui.main_window | Run aborted safely
+2026-09-28 08:33:11,084 | INFO     | MainThread | evc_gui.state_machine | State transition IDLE -> CLEANUP: Application closing
+2026-09-28 08:33:11,084 | INFO     | MainThread | evc_gui.ui.main_window | IDLE -> CLEANUP: Application closing
+2026-09-28 08:33:11,085 | INFO     | MainThread | evc_gui.services.serial_service | Serial disconnected
+2026-09-28 08:33:11,085 | INFO     | MainThread | evc_gui.state_machine | State transition CLEANUP -> EXIT: Cleanup complete
+2026-09-28 08:33:11,085 | INFO     | MainThread | evc_gui.ui.main_window | CLEANUP -> EXIT: Cleanup complete

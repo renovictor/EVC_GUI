@@ -6,12 +6,13 @@ import time
 from pathlib import Path
 import re
 
-from PySide6.QtCore import Qt, QTimer, Slot
+from PySide6.QtCore import Qt, QTimer, Slot, Signal, QObject
 from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDialog,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -29,6 +30,7 @@ from PySide6.QtWidgets import (
 from evc_gui.logging_config import configure_logging
 from evc_gui.services.phase2 import DataController, SerialWorker
 from evc_gui.services.serial_service import SerialService
+from evc_gui.services.port_scanner import PortScanner
 from evc_gui.state_machine import AppState, EvcStateMachine
 from evc_gui.ui.power_scope import PowerScopeWidget
 from evc_gui.ui.smith_chart import (
@@ -37,6 +39,7 @@ from evc_gui.ui.smith_chart import (
     calculate_load_impedance_from_z_params,
     impedance_to_gamma,
 )
+from evc_gui.ui.device_selection_dialog import DeviceSelectionDialog
 from version import APP_NAME, COMPANY, __version__
 
 log = logging.getLogger(__name__)
@@ -50,11 +53,17 @@ VER_RETRY_COUNT = 3
 SCAN_VER_RETRY_COUNT = 3
 
 
+# Signal emitter for thread-safe scanning completion
+class ScanCompleteSignals(QObject):
+    scan_complete = Signal(list)  # Emits list of DetectedDevice
+
+
 class MainWindow(QMainWindow):
     def __init__(self, asset_dir: Path, log_file: Path):
         super().__init__()
         self.log_file = log_file
         self.serial = SerialService()
+        self.port_scanner = PortScanner()
         self.machine = EvcStateMachine()
         self.machine.state_changed.connect(self.on_state_changed)
         self.detected_product = "Unknown"
@@ -67,6 +76,9 @@ class MainWindow(QMainWindow):
         self._chart_timer = QTimer(self)
         self._chart_timer.setInterval(250)
         self._chart_timer.timeout.connect(self._refresh_scope)
+        # Signal-based scanning (thread-safe)
+        self._scan_signals = ScanCompleteSignals()
+        self._scan_signals.scan_complete.connect(self._on_auto_scan_complete)
         self.setWindowTitle(f"{APP_NAME} v{__version__}")
         icon = asset_dir.parent / "smithchart.ico"
         if not icon.exists():
@@ -196,42 +208,105 @@ class MainWindow(QMainWindow):
         self.append(f"COM scan complete: {self.port.count()} port(s) found")
 
     def start_connection(self):
-        if not self.port.currentText():
-            QMessageBox.warning(self, "No COM Port", "Select a COM port first.")
+        """Start connection with auto-scan and device selection."""
+        self.start_btn.setEnabled(False)
+        self.append("Scanning COM ports for EVC devices...")
+        self.progress.setRange(0, 0)  # Indeterminate progress
+        
+        # Start scanning in background
+        import threading
+        self._scan_thread = threading.Thread(target=self._scan_and_select_device, daemon=True)
+        self._scan_thread.start()
+    
+    def _scan_and_select_device(self):
+        """Scan for devices and show selection dialog (runs in background thread)."""
+        try:
+            devices = self.port_scanner.scan_ports()
+            # Emit signal to notify main thread (thread-safe)
+            self._scan_signals.scan_complete.emit(devices)
+        except Exception as exc:
+            log.exception("Error scanning ports")
+            # Emit empty list on error
+            self._scan_signals.scan_complete.emit([])
+    
+    @Slot(list)
+    def _on_auto_scan_complete(self, devices: list):
+        """Handle auto-scan completion (called on main thread)."""
+        self.progress.setRange(0, 100)
+        self.progress.setValue(0)
+        
+        if not devices:
+            QMessageBox.warning(
+                self, "No Devices Found",
+                "No EVC devices detected on available COM ports.\n\n"
+                "Possible issues:\n"
+                "• Device not connected\n"
+                "• Device is not responding\n"
+                "• Wrong baud rate\n\n"
+                "Please check your device and try again."
+            )
+            self.start_btn.setEnabled(True)
+            self.append("Device scan failed: no devices detected")
             return
+        
+        # Show device selection dialog
+        dialog = DeviceSelectionDialog(devices, self)
+        dialog.setStyleSheet(self.styleSheet())  # Apply app styling
+        
+        if dialog.exec() == QDialog.Accepted:
+            # Check if user selected manual mode
+            if getattr(dialog, 'use_manual', False):
+                self.start_btn.setEnabled(True)
+                self.append("Switched to manual port selection")
+                return
+            
+            selected = dialog.get_selected_device()
+            if selected:
+                self._connect_to_device(selected)
+        else:
+            self.start_btn.setEnabled(True)
+            self.append("Device selection cancelled")
+    
+    def _connect_to_device(self, device):
+        """Connect to the selected device."""
+        self.append(f"Connecting to {device.product} on {device.port} @ {device.baudrate} baud...")
         self.start_btn.setEnabled(False)
         self.machine.transition(AppState.SCAN_EQUIPMENT, "Preparing scan sequence")
         self.machine.transition(AppState.CHECK_CONNECTION, "Opening serial port")
-        candidates = self._build_baud_scan_candidates()
-        connected = False
-        for baud in candidates:
-            result = self.serial.connect(self.port.currentText(), baud)
-            self.append(result.message)
-            if not result.ok:
-                continue
-            if not self._query_scan_identity(setup_device_log=False, fail_on_error=False):
-                self.append(f"Identity validation failed at {baud} baud")
-                self.serial.disconnect()
-                continue
-            self.append(f"Handshake OK at {baud} baud")
-            self._active_baud = baud
-            self.baud.setCurrentText(str(baud))
-            connected = True
-            break
-        if connected:
-            self.machine.transition(AppState.GETTING_START, "Communication path validated")
-            self.machine.transition(AppState.IDLE, "Ready for probe or run")
-            self._auto_download_contour_after_scan()
-            self.probe_btn.setEnabled(True)
-            self.port.setEnabled(False)
-            self.baud.setEnabled(False)
-            self.refresh_btn.setEnabled(False)
-            self._update_controls_for_idle()
-        else:
-            scanned = ", ".join(str(baud) for baud in candidates)
-            self.machine.transition(AppState.ERROR, f"Unable to communicate at scanned baud rates ({scanned})")
+        
+        # Connect to the selected port and baud rate
+        result = self.serial.connect(device.port, device.baudrate)
+        self.append(result.message)
+        if not result.ok:
+            self.machine.transition(AppState.ERROR, f"Connection failed: {result.message}")
             self.start_btn.setEnabled(True)
             self._update_controls_for_idle()
+            return
+        
+        # Validate identity
+        if not self._query_scan_identity(setup_device_log=False, fail_on_error=False):
+            self.append("Identity validation failed")
+            self.serial.disconnect()
+            self.machine.transition(AppState.ERROR, "Identity validation failed")
+            self.start_btn.setEnabled(True)
+            self._update_controls_for_idle()
+            return
+        
+        self.append(f"Handshake OK at {device.baudrate} baud")
+        self._active_baud = device.baudrate
+        self.port.setCurrentText(device.port)
+        self.baud.setCurrentText(str(device.baudrate))
+        
+        # Update UI
+        self.machine.transition(AppState.GETTING_START, "Communication path validated")
+        self.machine.transition(AppState.IDLE, "Ready for probe or run")
+        self._auto_download_contour_after_scan()
+        self.probe_btn.setEnabled(True)
+        self.port.setEnabled(False)
+        self.baud.setEnabled(False)
+        self.refresh_btn.setEnabled(False)
+        self._update_controls_for_idle()
+
 
     def probe(self):
         self.append(self.serial.probe().message)

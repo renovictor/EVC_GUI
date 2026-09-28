@@ -1,0 +1,885 @@
+2026-09-28 08:32:36,803 | INFO     | MainThread | evc_gui.app | Starting EVC GUI v26.0.0
+2026-09-28 08:32:37,002 | INFO     | MainThread | evc_gui.ui.main_window | COM scan complete: 4 port(s) found
+2026-09-28 08:32:37,035 | INFO     | MainThread | evc_gui.state_machine | State transition INITIALIZATION -> IDLE: Initialization complete
+2026-09-28 08:32:37,035 | INFO     | MainThread | evc_gui.ui.main_window | INITIALIZATION -> IDLE: Initialization complete
+2026-09-28 08:32:47,347 | INFO     | MainThread | evc_gui.state_machine | State transition IDLE -> SCAN_EQUIPMENT: Preparing scan sequence
+2026-09-28 08:32:47,347 | INFO     | MainThread | evc_gui.ui.main_window | IDLE -> SCAN_EQUIPMENT: Preparing scan sequence
+2026-09-28 08:32:47,347 | INFO     | MainThread | evc_gui.state_machine | State transition SCAN_EQUIPMENT -> CHECK_CONNECTION: Opening serial port
+2026-09-28 08:32:47,347 | INFO     | MainThread | evc_gui.ui.main_window | SCAN_EQUIPMENT -> CHECK_CONNECTION: Opening serial port
+2026-09-28 08:32:47,350 | INFO     | MainThread | evc_gui.services.serial_service | Serial connected: port=COM82 baud=57600
+2026-09-28 08:32:47,350 | INFO     | MainThread | evc_gui.ui.main_window | Connected to COM82 at 57600 baud
+2026-09-28 08:32:47,861 | INFO     | MainThread | evc_gui.services.serial_service | Command 'ver' response received
+2026-09-28 08:32:48,421 | INFO     | MainThread | evc_gui.services.serial_service | Command 'ver' response received
+2026-09-28 08:32:48,984 | INFO     | MainThread | evc_gui.services.serial_service | Command 'ver' response received
+2026-09-28 08:32:49,036 | INFO     | MainThread | evc_gui.ui.main_window | ver response:
+����
+2026-09-28 08:32:49,037 | INFO     | MainThread | evc_gui.ui.main_window | Invalid ver response content (likely baud mismatch)
+2026-09-28 08:32:49,037 | INFO     | MainThread | evc_gui.ui.main_window | Identity validation failed at 57600 baud
+2026-09-28 08:32:49,038 | INFO     | MainThread | evc_gui.services.serial_service | Serial disconnected
+2026-09-28 08:32:49,041 | INFO     | MainThread | evc_gui.services.serial_service | Serial connected: port=COM82 baud=230400
+2026-09-28 08:32:49,041 | INFO     | MainThread | evc_gui.ui.main_window | Connected to COM82 at 230400 baud
+2026-09-28 08:32:49,043 | INFO     | MainThread | evc_gui.services.serial_service | Command 'ver' response received
+2026-09-28 08:32:49,101 | INFO     | MainThread | evc_gui.services.serial_service | Command 'ver' response received
+2026-09-28 08:32:49,103 | INFO     | MainThread | evc_gui.ui.main_window | ver response:
+ver
+EVC Quantum (2013/2060)D DNET (782000003) Version 1.1.0.41
+FPGA (783000003) Version 1.0.0.114
+00:31:12>
+2026-09-28 08:32:49,103 | INFO     | MainThread | evc_gui.ui.main_window | Detected product type: Quantum
+2026-09-28 08:32:49,103 | INFO     | MainThread | evc_gui.ui.main_window | Detected firmware: EVC Quantum (2013/2060)D DNET (782000003) Version 1.1.0.41
+2026-09-28 08:32:49,108 | INFO     | MainThread | evc_gui.services.serial_service | Command 'sn' response received
+2026-09-28 08:32:49,109 | INFO     | MainThread | evc_gui.ui.main_window | sn response:
+sn
+Board S/N: 3722-00019-710
+Unit  S/N: 441000xx
+00:31:12>
+2026-09-28 08:32:49,109 | INFO     | MainThread | evc_gui.ui.main_window | Detected product type: Quantum
+2026-09-28 08:32:49,109 | INFO     | MainThread | evc_gui.ui.main_window | Handshake OK at 230400 baud
+2026-09-28 08:32:49,109 | INFO     | MainThread | evc_gui.state_machine | State transition CHECK_CONNECTION -> GETTING_START: Communication path validated
+2026-09-28 08:32:49,109 | INFO     | MainThread | evc_gui.ui.main_window | CHECK_CONNECTION -> GETTING_START: Communication path validated
+2026-09-28 08:32:49,109 | INFO     | MainThread | evc_gui.state_machine | State transition GETTING_START -> IDLE: Ready for probe or run
+2026-09-28 08:32:49,110 | INFO     | MainThread | evc_gui.ui.main_window | GETTING_START -> IDLE: Ready for probe or run
+2026-09-28 08:32:49,110 | INFO     | MainThread | evc_gui.state_machine | State transition IDLE -> DOWNLOADING_CONTOUR: Auto contour download after scan
+2026-09-28 08:32:49,110 | INFO     | MainThread | evc_gui.ui.main_window | IDLE -> DOWNLOADING_CONTOUR: Auto contour download after scan
+2026-09-28 08:32:49,113 | INFO     | MainThread | evc_gui.ui.main_window | Auto-downloading contour Z-parameters after equipment scan...
+2026-09-28 08:32:49,113 | INFO     | MainThread | evc_gui.ui.main_window | Loading Z-parameters for contour plot (edge positions)...
+2026-09-28 08:32:49,114 | INFO     | MainThread | evc_gui.ui.main_window | Querying hf/lf band edge positions...
+2026-09-28 08:32:49,124 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 0 0' response received
+2026-09-28 08:32:49,136 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 0 9' response received
+2026-09-28 08:32:49,146 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 0 18' response received
+2026-09-28 08:32:49,157 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 0 27' response received
+2026-09-28 08:32:49,167 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 0 36' response received
+2026-09-28 08:32:49,178 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 0 45' response received
+2026-09-28 08:32:49,188 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 0 54' response received
+2026-09-28 08:32:49,198 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 0 63' response received
+2026-09-28 08:32:49,210 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 1 8' response received
+2026-09-28 08:32:49,220 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 1 16' response received
+2026-09-28 08:32:49,230 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 1 25' response received
+2026-09-28 08:32:49,241 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 1 34' response received
+2026-09-28 08:32:49,251 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 1 43' response received
+2026-09-28 08:32:49,262 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 1 52' response received
+2026-09-28 08:32:49,272 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 1 61' response received
+2026-09-28 08:32:49,283 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 2 6' response received
+2026-09-28 08:32:49,293 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 2 15' response received
+2026-09-28 08:32:49,304 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 2 24' response received
+2026-09-28 08:32:49,314 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 2 33' response received
+2026-09-28 08:32:49,324 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 2 42' response received
+2026-09-28 08:32:49,335 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 2 51' response received
+2026-09-28 08:32:49,345 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 2 60' response received
+2026-09-28 08:32:49,356 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 3 5' response received
+2026-09-28 08:32:49,367 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 3 14' response received
+2026-09-28 08:32:49,377 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 3 23' response received
+2026-09-28 08:32:49,387 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 3 32' response received
+2026-09-28 08:32:49,397 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 3 40' response received
+2026-09-28 08:32:49,407 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 3 49' response received
+2026-09-28 08:32:49,418 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 3 58' response received
+2026-09-28 08:32:49,429 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 4 3' response received
+2026-09-28 08:32:49,440 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 4 12' response received
+2026-09-28 08:32:49,450 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 4 21' response received
+2026-09-28 08:32:49,460 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 4 30' response received
+2026-09-28 08:32:49,470 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 4 39' response received
+2026-09-28 08:32:49,481 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 4 48' response received
+2026-09-28 08:32:49,491 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 4 57' response received
+2026-09-28 08:32:49,503 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 5 2' response received
+2026-09-28 08:32:49,513 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 5 11' response received
+2026-09-28 08:32:49,523 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 5 20' response received
+2026-09-28 08:32:49,534 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 5 29' response received
+2026-09-28 08:32:49,544 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 5 38' response received
+2026-09-28 08:32:49,554 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 5 47' response received
+2026-09-28 08:32:49,565 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 5 55' response received
+2026-09-28 08:32:49,576 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 6 0' response received
+2026-09-28 08:32:49,588 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 6 9' response received
+2026-09-28 08:32:49,598 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 6 18' response received
+2026-09-28 08:32:49,608 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 6 27' response received
+2026-09-28 08:32:49,618 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 6 36' response received
+2026-09-28 08:32:49,629 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 6 45' response received
+2026-09-28 08:32:49,639 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 6 54' response received
+2026-09-28 08:32:49,649 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 6 63' response received
+2026-09-28 08:32:49,659 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 6 63' response received
+2026-09-28 08:32:49,669 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 9 6 63' response received
+2026-09-28 08:32:49,680 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 18 6 63' response received
+2026-09-28 08:32:49,691 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 27 6 63' response received
+2026-09-28 08:32:49,703 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 36 6 63' response received
+2026-09-28 08:32:49,714 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 45 6 63' response received
+2026-09-28 08:32:49,725 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 54 6 63' response received
+2026-09-28 08:32:49,737 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 63 6 63' response received
+2026-09-28 08:32:49,747 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 1 8 6 63' response received
+2026-09-28 08:32:49,758 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 1 16 6 63' response received
+2026-09-28 08:32:49,769 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 1 25 6 63' response received
+2026-09-28 08:32:49,780 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 1 34 6 63' response received
+2026-09-28 08:32:49,792 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 1 43 6 63' response received
+2026-09-28 08:32:49,803 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 1 52 6 63' response received
+2026-09-28 08:32:49,814 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 1 61 6 63' response received
+2026-09-28 08:32:49,825 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 2 6 6 63' response received
+2026-09-28 08:32:49,836 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 2 15 6 63' response received
+2026-09-28 08:32:49,847 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 2 24 6 63' response received
+2026-09-28 08:32:49,859 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 2 33 6 63' response received
+2026-09-28 08:32:49,871 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 2 42 6 63' response received
+2026-09-28 08:32:49,882 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 2 51 6 63' response received
+2026-09-28 08:32:49,894 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 2 60 6 63' response received
+2026-09-28 08:32:49,904 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 3 5 6 63' response received
+2026-09-28 08:32:49,915 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 3 14 6 63' response received
+2026-09-28 08:32:49,926 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 3 23 6 63' response received
+2026-09-28 08:32:49,937 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 3 32 6 63' response received
+2026-09-28 08:32:49,948 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 3 40 6 63' response received
+2026-09-28 08:32:49,959 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 3 49 6 63' response received
+2026-09-28 08:32:49,970 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 3 58 6 63' response received
+2026-09-28 08:32:49,980 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 4 3 6 63' response received
+2026-09-28 08:32:49,992 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 4 12 6 63' response received
+2026-09-28 08:32:50,003 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 4 21 6 63' response received
+2026-09-28 08:32:50,014 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 4 30 6 63' response received
+2026-09-28 08:32:50,025 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 4 39 6 63' response received
+2026-09-28 08:32:50,037 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 4 48 6 63' response received
+2026-09-28 08:32:50,048 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 4 57 6 63' response received
+2026-09-28 08:32:50,058 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 5 2 6 63' response received
+2026-09-28 08:32:50,069 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 5 11 6 63' response received
+2026-09-28 08:32:50,080 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 5 20 6 63' response received
+2026-09-28 08:32:50,092 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 5 29 6 63' response received
+2026-09-28 08:32:50,103 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 5 38 6 63' response received
+2026-09-28 08:32:50,114 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 5 47 6 63' response received
+2026-09-28 08:32:50,126 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 5 55 6 63' response received
+2026-09-28 08:32:50,137 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 0 6 63' response received
+2026-09-28 08:32:50,147 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 9 6 63' response received
+2026-09-28 08:32:50,158 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 18 6 63' response received
+2026-09-28 08:32:50,170 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 27 6 63' response received
+2026-09-28 08:32:50,181 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 36 6 63' response received
+2026-09-28 08:32:50,192 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 45 6 63' response received
+2026-09-28 08:32:50,203 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 54 6 63' response received
+2026-09-28 08:32:50,214 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 6 63' response received
+2026-09-28 08:32:50,225 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 6 63' response received
+2026-09-28 08:32:50,226 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct=100% -> C1=(6,63), C2=(6,63) | Z=(0.018,-17.443) | gamma=(-0.7825,-0.6216) | |gamma|=0.9994
+2026-09-28 08:32:50,237 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 6 54' response received
+2026-09-28 08:32:50,238 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 98% -> C1=(6,63), C2=(6,54) | Z=(0.020,-17.214) | gamma=(-0.7875,-0.6152) | |gamma|=0.9993
+2026-09-28 08:32:50,248 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 6 45' response received
+2026-09-28 08:32:50,249 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 96% -> C1=(6,63), C2=(6,45) | Z=(0.027,-16.963) | gamma=(-0.7928,-0.6079) | |gamma|=0.9990
+2026-09-28 08:32:50,260 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 6 36' response received
+2026-09-28 08:32:50,261 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 94% -> C1=(6,63), C2=(6,36) | Z=(0.029,-16.724) | gamma=(-0.7979,-0.6010) | |gamma|=0.9990
+2026-09-28 08:32:50,271 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 6 27' response received
+2026-09-28 08:32:50,272 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 92% -> C1=(6,63), C2=(6,27) | Z=(0.029,-16.386) | gamma=(-0.8052,-0.5913) | |gamma|=0.9990
+2026-09-28 08:32:50,283 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 6 18' response received
+2026-09-28 08:32:50,284 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 90% -> C1=(6,63), C2=(6,18) | Z=(0.033,-16.138) | gamma=(-0.8104,-0.5839) | |gamma|=0.9988
+2026-09-28 08:32:50,294 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 6 9' response received
+2026-09-28 08:32:50,296 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 88% -> C1=(6,63), C2=(6,9) | Z=(0.039,-15.864) | gamma=(-0.8159,-0.5757) | |gamma|=0.9986
+2026-09-28 08:32:50,305 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 6 0' response received
+2026-09-28 08:32:50,307 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 86% -> C1=(6,63), C2=(6,0) | Z=(0.042,-15.603) | gamma=(-0.8213,-0.5679) | |gamma|=0.9985
+2026-09-28 08:32:50,317 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 5 55' response received
+2026-09-28 08:32:50,318 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 84% -> C1=(6,63), C2=(5,55) | Z=(0.049,-15.239) | gamma=(-0.8285,-0.5567) | |gamma|=0.9982
+2026-09-28 08:32:50,329 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 5 47' response received
+2026-09-28 08:32:50,331 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 82% -> C1=(6,63), C2=(5,47) | Z=(0.054,-14.978) | gamma=(-0.8337,-0.5487) | |gamma|=0.9980
+2026-09-28 08:32:50,341 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 5 38' response received
+2026-09-28 08:32:50,342 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 80% -> C1=(6,63), C2=(5,38) | Z=(0.058,-14.696) | gamma=(-0.8392,-0.5399) | |gamma|=0.9979
+2026-09-28 08:32:50,353 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 5 29' response received
+2026-09-28 08:32:50,354 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 78% -> C1=(6,63), C2=(5,29) | Z=(0.059,-14.303) | gamma=(-0.8469,-0.5277) | |gamma|=0.9978
+2026-09-28 08:32:50,364 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 5 20' response received
+2026-09-28 08:32:50,365 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 76% -> C1=(6,63), C2=(5,20) | Z=(0.062,-14.011) | gamma=(-0.8524,-0.5184) | |gamma|=0.9977
+2026-09-28 08:32:50,375 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 5 11' response received
+2026-09-28 08:32:50,376 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 74% -> C1=(6,63), C2=(5,11) | Z=(0.070,-13.695) | gamma=(-0.8582,-0.5082) | |gamma|=0.9974
+2026-09-28 08:32:50,386 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 5 2' response received
+2026-09-28 08:32:50,387 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 72% -> C1=(6,63), C2=(5,2) | Z=(0.072,-13.391) | gamma=(-0.8638,-0.4984) | |gamma|=0.9973
+2026-09-28 08:32:50,398 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 4 57' response received
+2026-09-28 08:32:50,399 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 70% -> C1=(6,63), C2=(4,57) | Z=(0.082,-12.968) | gamma=(-0.8713,-0.4845) | |gamma|=0.9969
+2026-09-28 08:32:50,409 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 4 48' response received
+2026-09-28 08:32:50,410 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 68% -> C1=(6,63), C2=(4,48) | Z=(0.085,-12.653) | gamma=(-0.8768,-0.4741) | |gamma|=0.9968
+2026-09-28 08:32:50,420 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 4 39' response received
+2026-09-28 08:32:50,421 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 66% -> C1=(6,63), C2=(4,39) | Z=(0.092,-12.294) | gamma=(-0.8829,-0.4621) | |gamma|=0.9965
+2026-09-28 08:32:50,431 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 4 30' response received
+2026-09-28 08:32:50,432 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 64% -> C1=(6,63), C2=(4,30) | Z=(0.095,-11.831) | gamma=(-0.8907,-0.4465) | |gamma|=0.9964
+2026-09-28 08:32:50,443 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 4 21' response received
+2026-09-28 08:32:50,444 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 62% -> C1=(6,63), C2=(4,21) | Z=(0.099,-11.485) | gamma=(-0.8964,-0.4347) | |gamma|=0.9962
+2026-09-28 08:32:50,454 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 4 12' response received
+2026-09-28 08:32:50,455 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 60% -> C1=(6,63), C2=(4,12) | Z=(0.106,-11.113) | gamma=(-0.9022,-0.4219) | |gamma|=0.9960
+2026-09-28 08:32:50,464 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 4 3' response received
+2026-09-28 08:32:50,465 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 58% -> C1=(6,63), C2=(4,3) | Z=(0.110,-10.747) | gamma=(-0.9079,-0.4092) | |gamma|=0.9958
+2026-09-28 08:32:50,476 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 3 58' response received
+2026-09-28 08:32:50,477 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 56% -> C1=(6,63), C2=(3,58) | Z=(0.119,-10.135) | gamma=(-0.9169,-0.3876) | |gamma|=0.9955
+2026-09-28 08:32:50,487 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 3 49' response received
+2026-09-28 08:32:50,488 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 54% -> C1=(6,63), C2=(3,49) | Z=(0.123,-9.755) | gamma=(-0.9223,-0.3741) | |gamma|=0.9953
+2026-09-28 08:32:50,499 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 3 40' response received
+2026-09-28 08:32:50,500 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 52% -> C1=(6,63), C2=(3,40) | Z=(0.129,-9.320) | gamma=(-0.9282,-0.3585) | |gamma|=0.9950
+2026-09-28 08:32:50,510 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 3 32' response received
+2026-09-28 08:32:50,512 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 50% -> C1=(6,63), C2=(3,32) | Z=(0.133,-8.962) | gamma=(-0.9329,-0.3456) | |gamma|=0.9949
+2026-09-28 08:32:50,522 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 3 23' response received
+2026-09-28 08:32:50,523 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 48% -> C1=(6,63), C2=(3,23) | Z=(0.138,-8.380) | gamma=(-0.9403,-0.3243) | |gamma|=0.9946
+2026-09-28 08:32:50,534 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 3 14' response received
+2026-09-28 08:32:50,535 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 46% -> C1=(6,63), C2=(3,14) | Z=(0.146,-7.925) | gamma=(-0.9456,-0.3075) | |gamma|=0.9943
+2026-09-28 08:32:50,545 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 3 5' response received
+2026-09-28 08:32:50,546 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 44% -> C1=(6,63), C2=(3,5) | Z=(0.149,-7.477) | gamma=(-0.9507,-0.2909) | |gamma|=0.9942
+2026-09-28 08:32:50,556 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 2 60' response received
+2026-09-28 08:32:50,558 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 42% -> C1=(6,63), C2=(2,60) | Z=(0.163,-6.805) | gamma=(-0.9575,-0.2655) | |gamma|=0.9936
+2026-09-28 08:32:50,568 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 2 51' response received
+2026-09-28 08:32:50,569 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 40% -> C1=(6,63), C2=(2,51) | Z=(0.167,-6.336) | gamma=(-0.9620,-0.2478) | |gamma|=0.9934
+2026-09-28 08:32:50,580 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 2 42' response received
+2026-09-28 08:32:50,581 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 38% -> C1=(6,63), C2=(2,42) | Z=(0.174,-5.799) | gamma=(-0.9668,-0.2273) | |gamma|=0.9931
+2026-09-28 08:32:50,591 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 2 33' response received
+2026-09-28 08:32:50,593 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 36% -> C1=(6,63), C2=(2,33) | Z=(0.179,-5.306) | gamma=(-0.9708,-0.2084) | |gamma|=0.9930
+2026-09-28 08:32:50,603 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 2 24' response received
+2026-09-28 08:32:50,604 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 34% -> C1=(6,63), C2=(2,24) | Z=(0.184,-4.581) | gamma=(-0.9762,-0.1804) | |gamma|=0.9927
+2026-09-28 08:32:50,615 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 2 15' response received
+2026-09-28 08:32:50,616 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 32% -> C1=(6,63), C2=(2,15) | Z=(0.194,-4.009) | gamma=(-0.9796,-0.1581) | |gamma|=0.9923
+2026-09-28 08:32:50,626 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 2 6' response received
+2026-09-28 08:32:50,627 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 30% -> C1=(6,63), C2=(2,6) | Z=(0.197,-3.452) | gamma=(-0.9828,-0.1364) | |gamma|=0.9922
+2026-09-28 08:32:50,638 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 1 61' response received
+2026-09-28 08:32:50,639 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 28% -> C1=(6,63), C2=(1,61) | Z=(0.207,-2.761) | gamma=(-0.9858,-0.1092) | |gamma|=0.9918
+2026-09-28 08:32:50,649 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 1 52' response received
+2026-09-28 08:32:50,651 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 26% -> C1=(6,63), C2=(1,52) | Z=(0.212,-2.176) | gamma=(-0.9878,-0.0861) | |gamma|=0.9916
+2026-09-28 08:32:50,661 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 1 43' response received
+2026-09-28 08:32:50,662 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 24% -> C1=(6,63), C2=(1,43) | Z=(0.223,-1.498) | gamma=(-0.9894,-0.0594) | |gamma|=0.9911
+2026-09-28 08:32:50,673 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 1 34' response received
+2026-09-28 08:32:50,674 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 22% -> C1=(6,63), C2=(1,34) | Z=(0.227,-0.871) | gamma=(-0.9904,-0.0345) | |gamma|=0.9910
+2026-09-28 08:32:50,684 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 1 25' response received
+2026-09-28 08:32:50,685 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 20% -> C1=(6,63), C2=(1,25) | Z=(0.230,0.052) | gamma=(-0.9909,0.0021) | |gamma|=0.9909
+2026-09-28 08:32:50,696 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 1 16' response received
+2026-09-28 08:32:50,697 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 18% -> C1=(6,63), C2=(1,16) | Z=(0.232,0.721) | gamma=(-0.9904,0.0286) | |gamma|=0.9908
+2026-09-28 08:32:50,706 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 1 8' response received
+2026-09-28 08:32:50,707 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 16% -> C1=(6,63), C2=(1,8) | Z=(0.244,1.417) | gamma=(-0.9887,0.0561) | |gamma|=0.9903
+2026-09-28 08:32:50,718 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 0 63' response received
+2026-09-28 08:32:50,719 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 14% -> C1=(6,63), C2=(0,63) | Z=(0.265,2.198) | gamma=(-0.9857,0.0868) | |gamma|=0.9895
+2026-09-28 08:32:50,729 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 0 54' response received
+2026-09-28 08:32:50,730 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 12% -> C1=(6,63), C2=(0,54) | Z=(0.268,2.955) | gamma=(-0.9825,0.1165) | |gamma|=0.9894
+2026-09-28 08:32:50,741 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 0 45' response received
+2026-09-28 08:32:50,742 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct= 10% -> C1=(6,63), C2=(0,45) | Z=(0.279,3.828) | gamma=(-0.9775,0.1506) | |gamma|=0.9890
+2026-09-28 08:32:50,752 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 0 36' response received
+2026-09-28 08:32:50,753 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct=  8% -> C1=(6,63), C2=(0,36) | Z=(0.281,4.644) | gamma=(-0.9720,0.1821) | |gamma|=0.9889
+2026-09-28 08:32:50,763 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 0 27' response received
+2026-09-28 08:32:50,764 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct=  6% -> C1=(6,63), C2=(0,27) | Z=(0.290,5.851) | gamma=(-0.9619,0.2282) | |gamma|=0.9886
+2026-09-28 08:32:50,774 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 0 18' response received
+2026-09-28 08:32:50,775 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct=  4% -> C1=(6,63), C2=(0,18) | Z=(0.294,6.732) | gamma=(-0.9533,0.2615) | |gamma|=0.9885
+2026-09-28 08:32:50,784 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 0 9' response received
+2026-09-28 08:32:50,785 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct=  2% -> C1=(6,63), C2=(0,9) | Z=(0.306,7.750) | gamma=(-0.9418,0.2992) | |gamma|=0.9881
+2026-09-28 08:32:50,795 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 0 0' response received
+2026-09-28 08:32:50,796 | INFO     | MainThread | evc_gui.ui.main_window | HF Line 3 pct=  0% -> C1=(6,63), C2=(0,0) | Z=(0.308,8.705) | gamma=(-0.9300,0.3339) | |gamma|=0.9881
+2026-09-28 08:32:50,805 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 63 0 0' response received
+2026-09-28 08:32:50,815 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 54 0 0' response received
+2026-09-28 08:32:50,825 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 45 0 0' response received
+2026-09-28 08:32:50,835 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 36 0 0' response received
+2026-09-28 08:32:50,845 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 27 0 0' response received
+2026-09-28 08:32:50,855 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 18 0 0' response received
+2026-09-28 08:32:50,866 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 9 0 0' response received
+2026-09-28 08:32:50,877 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 6 0 0 0' response received
+2026-09-28 08:32:50,888 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 5 55 0 0' response received
+2026-09-28 08:32:50,898 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 5 47 0 0' response received
+2026-09-28 08:32:50,908 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 5 38 0 0' response received
+2026-09-28 08:32:50,918 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 5 29 0 0' response received
+2026-09-28 08:32:50,928 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 5 20 0 0' response received
+2026-09-28 08:32:50,939 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 5 11 0 0' response received
+2026-09-28 08:32:50,950 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 5 2 0 0' response received
+2026-09-28 08:32:50,961 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 4 57 0 0' response received
+2026-09-28 08:32:50,971 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 4 48 0 0' response received
+2026-09-28 08:32:50,981 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 4 39 0 0' response received
+2026-09-28 08:32:50,992 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 4 30 0 0' response received
+2026-09-28 08:32:51,002 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 4 21 0 0' response received
+2026-09-28 08:32:51,012 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 4 12 0 0' response received
+2026-09-28 08:32:51,024 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 4 3 0 0' response received
+2026-09-28 08:32:51,034 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 3 58 0 0' response received
+2026-09-28 08:32:51,045 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 3 49 0 0' response received
+2026-09-28 08:32:51,055 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 3 40 0 0' response received
+2026-09-28 08:32:51,065 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 3 32 0 0' response received
+2026-09-28 08:32:51,075 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 3 23 0 0' response received
+2026-09-28 08:32:51,086 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 3 14 0 0' response received
+2026-09-28 08:32:51,097 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 3 5 0 0' response received
+2026-09-28 08:32:51,108 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 2 60 0 0' response received
+2026-09-28 08:32:51,118 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 2 51 0 0' response received
+2026-09-28 08:32:51,128 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 2 42 0 0' response received
+2026-09-28 08:32:51,139 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 2 33 0 0' response received
+2026-09-28 08:32:51,149 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 2 24 0 0' response received
+2026-09-28 08:32:51,160 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 2 15 0 0' response received
+2026-09-28 08:32:51,171 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 2 6 0 0' response received
+2026-09-28 08:32:51,181 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 1 61 0 0' response received
+2026-09-28 08:32:51,191 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 1 52 0 0' response received
+2026-09-28 08:32:51,202 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 1 43 0 0' response received
+2026-09-28 08:32:51,212 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 1 34 0 0' response received
+2026-09-28 08:32:51,222 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 1 25 0 0' response received
+2026-09-28 08:32:51,232 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 1 16 0 0' response received
+2026-09-28 08:32:51,244 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 1 8 0 0' response received
+2026-09-28 08:32:51,254 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 63 0 0' response received
+2026-09-28 08:32:51,264 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 54 0 0' response received
+2026-09-28 08:32:51,274 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 45 0 0' response received
+2026-09-28 08:32:51,284 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 36 0 0' response received
+2026-09-28 08:32:51,294 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 27 0 0' response received
+2026-09-28 08:32:51,304 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 18 0 0' response received
+2026-09-28 08:32:51,316 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 9 0 0' response received
+2026-09-28 08:32:51,327 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show hf 0 0 0 0' response received
+2026-09-28 08:32:51,339 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 0 0' response received
+2026-09-28 08:32:51,350 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 0 9' response received
+2026-09-28 08:32:51,361 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 0 18' response received
+2026-09-28 08:32:51,371 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 0 27' response received
+2026-09-28 08:32:51,381 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 0 36' response received
+2026-09-28 08:32:51,391 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 0 45' response received
+2026-09-28 08:32:51,401 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 0 54' response received
+2026-09-28 08:32:51,412 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 0 63' response received
+2026-09-28 08:32:51,423 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 1 8' response received
+2026-09-28 08:32:51,433 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 1 16' response received
+2026-09-28 08:32:51,443 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 1 25' response received
+2026-09-28 08:32:51,453 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 1 34' response received
+2026-09-28 08:32:51,464 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 1 43' response received
+2026-09-28 08:32:51,474 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 1 52' response received
+2026-09-28 08:32:51,484 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 1 61' response received
+2026-09-28 08:32:51,495 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 2 6' response received
+2026-09-28 08:32:51,506 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 2 15' response received
+2026-09-28 08:32:51,516 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 2 24' response received
+2026-09-28 08:32:51,527 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 2 33' response received
+2026-09-28 08:32:51,537 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 2 42' response received
+2026-09-28 08:32:51,547 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 2 51' response received
+2026-09-28 08:32:51,557 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 2 60' response received
+2026-09-28 08:32:51,568 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 3 5' response received
+2026-09-28 08:32:51,579 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 3 14' response received
+2026-09-28 08:32:51,589 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 3 23' response received
+2026-09-28 08:32:51,599 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 3 32' response received
+2026-09-28 08:32:51,610 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 3 40' response received
+2026-09-28 08:32:51,620 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 3 49' response received
+2026-09-28 08:32:51,631 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 3 58' response received
+2026-09-28 08:32:51,643 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 4 3' response received
+2026-09-28 08:32:51,653 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 4 12' response received
+2026-09-28 08:32:51,663 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 4 21' response received
+2026-09-28 08:32:51,673 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 4 30' response received
+2026-09-28 08:32:51,684 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 4 39' response received
+2026-09-28 08:32:51,693 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 4 48' response received
+2026-09-28 08:32:51,704 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 4 57' response received
+2026-09-28 08:32:51,715 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 5 2' response received
+2026-09-28 08:32:51,725 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 5 11' response received
+2026-09-28 08:32:51,735 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 5 20' response received
+2026-09-28 08:32:51,746 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 5 29' response received
+2026-09-28 08:32:51,756 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 5 38' response received
+2026-09-28 08:32:51,766 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 5 47' response received
+2026-09-28 08:32:51,776 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 5 55' response received
+2026-09-28 08:32:51,787 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 6 0' response received
+2026-09-28 08:32:51,798 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 6 9' response received
+2026-09-28 08:32:51,808 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 6 18' response received
+2026-09-28 08:32:51,818 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 6 27' response received
+2026-09-28 08:32:51,828 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 6 36' response received
+2026-09-28 08:32:51,839 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 6 45' response received
+2026-09-28 08:32:51,849 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 6 54' response received
+2026-09-28 08:32:51,859 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 6 63' response received
+2026-09-28 08:32:51,869 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 6 63' response received
+2026-09-28 08:32:51,879 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 9 6 63' response received
+2026-09-28 08:32:51,891 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 18 6 63' response received
+2026-09-28 08:32:51,901 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 27 6 63' response received
+2026-09-28 08:32:51,912 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 36 6 63' response received
+2026-09-28 08:32:51,923 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 45 6 63' response received
+2026-09-28 08:32:51,934 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 54 6 63' response received
+2026-09-28 08:32:51,946 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 63 6 63' response received
+2026-09-28 08:32:51,955 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 1 8 6 63' response received
+2026-09-28 08:32:51,966 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 1 16 6 63' response received
+2026-09-28 08:32:51,977 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 1 25 6 63' response received
+2026-09-28 08:32:51,989 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 1 34 6 63' response received
+2026-09-28 08:32:52,000 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 1 43 6 63' response received
+2026-09-28 08:32:52,012 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 1 52 6 63' response received
+2026-09-28 08:32:52,023 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 1 61 6 63' response received
+2026-09-28 08:32:52,033 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 2 6 6 63' response received
+2026-09-28 08:32:52,044 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 2 15 6 63' response received
+2026-09-28 08:32:52,056 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 2 24 6 63' response received
+2026-09-28 08:32:52,067 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 2 33 6 63' response received
+2026-09-28 08:32:52,078 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 2 42 6 63' response received
+2026-09-28 08:32:52,089 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 2 51 6 63' response received
+2026-09-28 08:32:52,100 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 2 60 6 63' response received
+2026-09-28 08:32:52,111 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 3 5 6 63' response received
+2026-09-28 08:32:52,122 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 3 14 6 63' response received
+2026-09-28 08:32:52,133 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 3 23 6 63' response received
+2026-09-28 08:32:52,144 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 3 32 6 63' response received
+2026-09-28 08:32:52,155 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 3 40 6 63' response received
+2026-09-28 08:32:52,166 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 3 49 6 63' response received
+2026-09-28 08:32:52,178 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 3 58 6 63' response received
+2026-09-28 08:32:52,188 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 4 3 6 63' response received
+2026-09-28 08:32:52,199 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 4 12 6 63' response received
+2026-09-28 08:32:52,210 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 4 21 6 63' response received
+2026-09-28 08:32:52,222 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 4 30 6 63' response received
+2026-09-28 08:32:52,233 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 4 39 6 63' response received
+2026-09-28 08:32:52,244 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 4 48 6 63' response received
+2026-09-28 08:32:52,256 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 4 57 6 63' response received
+2026-09-28 08:32:52,265 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 5 2 6 63' response received
+2026-09-28 08:32:52,277 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 5 11 6 63' response received
+2026-09-28 08:32:52,288 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 5 20 6 63' response received
+2026-09-28 08:32:52,299 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 5 29 6 63' response received
+2026-09-28 08:32:52,310 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 5 38 6 63' response received
+2026-09-28 08:32:52,322 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 5 47 6 63' response received
+2026-09-28 08:32:52,333 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 5 55 6 63' response received
+2026-09-28 08:32:52,343 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 0 6 63' response received
+2026-09-28 08:32:52,354 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 9 6 63' response received
+2026-09-28 08:32:52,365 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 18 6 63' response received
+2026-09-28 08:32:52,377 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 27 6 63' response received
+2026-09-28 08:32:52,388 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 36 6 63' response received
+2026-09-28 08:32:52,399 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 45 6 63' response received
+2026-09-28 08:32:52,410 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 54 6 63' response received
+2026-09-28 08:32:52,421 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 6 63' response received
+2026-09-28 08:32:52,432 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 6 63' response received
+2026-09-28 08:32:52,433 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct=100% -> C1=(6,63), C2=(6,63) | Z=(4.612,99.307) | gamma=(0.5748,0.7732) | |gamma|=0.9634
+2026-09-28 08:32:52,444 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 6 54' response received
+2026-09-28 08:32:52,445 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 98% -> C1=(6,63), C2=(6,54) | Z=(4.764,100.951) | gamma=(0.5848,0.7653) | |gamma|=0.9632
+2026-09-28 08:32:52,455 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 6 45' response received
+2026-09-28 08:32:52,457 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 96% -> C1=(6,63), C2=(6,45) | Z=(4.945,102.605) | gamma=(0.5944,0.7574) | |gamma|=0.9628
+2026-09-28 08:32:52,467 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 6 36' response received
+2026-09-28 08:32:52,468 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 94% -> C1=(6,63), C2=(6,36) | Z=(5.144,104.415) | gamma=(0.6045,0.7489) | |gamma|=0.9624
+2026-09-28 08:32:52,479 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 6 27' response received
+2026-09-28 08:32:52,480 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 92% -> C1=(6,63), C2=(6,27) | Z=(5.373,106.411) | gamma=(0.6152,0.7395) | |gamma|=0.9619
+2026-09-28 08:32:52,490 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 6 18' response received
+2026-09-28 08:32:52,492 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 90% -> C1=(6,63), C2=(6,18) | Z=(5.583,108.458) | gamma=(0.6258,0.7302) | |gamma|=0.9617
+2026-09-28 08:32:52,501 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 6 9' response received
+2026-09-28 08:32:52,502 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 88% -> C1=(6,63), C2=(6,9) | Z=(5.843,110.596) | gamma=(0.6362,0.7205) | |gamma|=0.9612
+2026-09-28 08:32:52,512 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 6 0' response received
+2026-09-28 08:32:52,513 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 86% -> C1=(6,63), C2=(6,0) | Z=(6.110,112.836) | gamma=(0.6467,0.7105) | |gamma|=0.9608
+2026-09-28 08:32:52,523 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 5 55' response received
+2026-09-28 08:32:52,525 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 84% -> C1=(6,63), C2=(5,55) | Z=(6.362,114.630) | gamma=(0.6546,0.7025) | |gamma|=0.9602
+2026-09-28 08:32:52,535 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 5 47' response received
+2026-09-28 08:32:52,537 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 82% -> C1=(6,63), C2=(5,47) | Z=(6.643,116.786) | gamma=(0.6638,0.6932) | |gamma|=0.9598
+2026-09-28 08:32:52,547 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 5 38' response received
+2026-09-28 08:32:52,548 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 80% -> C1=(6,63), C2=(5,38) | Z=(6.984,119.634) | gamma=(0.6755,0.6813) | |gamma|=0.9594
+2026-09-28 08:32:52,558 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 5 29' response received
+2026-09-28 08:32:52,559 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 78% -> C1=(6,63), C2=(5,29) | Z=(7.413,122.714) | gamma=(0.6872,0.6686) | |gamma|=0.9588
+2026-09-28 08:32:52,570 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 5 20' response received
+2026-09-28 08:32:52,571 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 76% -> C1=(6,63), C2=(5,20) | Z=(7.852,125.980) | gamma=(0.6990,0.6555) | |gamma|=0.9583
+2026-09-28 08:32:52,582 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 5 11' response received
+2026-09-28 08:32:52,583 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 74% -> C1=(6,63), C2=(5,11) | Z=(8.314,129.409) | gamma=(0.7106,0.6423) | |gamma|=0.9578
+2026-09-28 08:32:52,593 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 5 2' response received
+2026-09-28 08:32:52,594 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 72% -> C1=(6,63), C2=(5,2) | Z=(8.834,133.161) | gamma=(0.7224,0.6283) | |gamma|=0.9574
+2026-09-28 08:32:52,604 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 4 57' response received
+2026-09-28 08:32:52,606 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 70% -> C1=(6,63), C2=(4,57) | Z=(9.456,136.911) | gamma=(0.7331,0.6145) | |gamma|=0.9566
+2026-09-28 08:32:52,617 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 4 48' response received
+2026-09-28 08:32:52,618 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 68% -> C1=(6,63), C2=(4,48) | Z=(10.111,141.240) | gamma=(0.7449,0.5994) | |gamma|=0.9561
+2026-09-28 08:32:52,629 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 4 39' response received
+2026-09-28 08:32:52,630 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 66% -> C1=(6,63), C2=(4,39) | Z=(10.883,146.278) | gamma=(0.7575,0.5827) | |gamma|=0.9557
+2026-09-28 08:32:52,640 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 4 30' response received
+2026-09-28 08:32:52,642 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 64% -> C1=(6,63), C2=(4,30) | Z=(11.823,151.688) | gamma=(0.7696,0.5653) | |gamma|=0.9549
+2026-09-28 08:32:52,652 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 4 21' response received
+2026-09-28 08:32:52,653 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 62% -> C1=(6,63), C2=(4,21) | Z=(12.860,157.918) | gamma=(0.7824,0.5466) | |gamma|=0.9544
+2026-09-28 08:32:52,663 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 4 12' response received
+2026-09-28 08:32:52,664 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 60% -> C1=(6,63), C2=(4,12) | Z=(14.117,164.497) | gamma=(0.7943,0.5277) | |gamma|=0.9536
+2026-09-28 08:32:52,674 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 4 3' response received
+2026-09-28 08:32:52,675 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 58% -> C1=(6,63), C2=(4,3) | Z=(15.498,172.058) | gamma=(0.8068,0.5076) | |gamma|=0.9532
+2026-09-28 08:32:52,685 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 3 58' response received
+2026-09-28 08:32:52,686 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 56% -> C1=(6,63), C2=(3,58) | Z=(17.190,180.121) | gamma=(0.8182,0.4874) | |gamma|=0.9524
+2026-09-28 08:32:52,696 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 3 49' response received
+2026-09-28 08:32:52,697 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 54% -> C1=(6,63), C2=(3,49) | Z=(19.116,189.421) | gamma=(0.8300,0.4659) | |gamma|=0.9518
+2026-09-28 08:32:52,708 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 3 40' response received
+2026-09-28 08:32:52,709 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 52% -> C1=(6,63), C2=(3,40) | Z=(21.673,200.881) | gamma=(0.8424,0.4416) | |gamma|=0.9512
+2026-09-28 08:32:52,719 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 3 32' response received
+2026-09-28 08:32:52,720 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 50% -> C1=(6,63), C2=(3,32) | Z=(24.152,211.393) | gamma=(0.8522,0.4212) | |gamma|=0.9507
+2026-09-28 08:32:52,731 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 3 23' response received
+2026-09-28 08:32:52,732 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 48% -> C1=(6,63), C2=(3,23) | Z=(28.300,227.776) | gamma=(0.8650,0.3926) | |gamma|=0.9500
+2026-09-28 08:32:52,742 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 3 14' response received
+2026-09-28 08:32:52,743 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 46% -> C1=(6,63), C2=(3,14) | Z=(32.996,244.113) | gamma=(0.8752,0.3672) | |gamma|=0.9491
+2026-09-28 08:32:52,753 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 3 5' response received
+2026-09-28 08:32:52,754 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 44% -> C1=(6,63), C2=(3,5) | Z=(39.498,266.715) | gamma=(0.8869,0.3370) | |gamma|=0.9488
+2026-09-28 08:32:52,764 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 2 60' response received
+2026-09-28 08:32:52,765 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 42% -> C1=(6,63), C2=(2,60) | Z=(47.573,289.965) | gamma=(0.8958,0.3098) | |gamma|=0.9478
+2026-09-28 08:32:52,776 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 2 51' response received
+2026-09-28 08:32:52,777 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 40% -> C1=(6,63), C2=(2,51) | Z=(59.391,321.651) | gamma=(0.9052,0.2787) | |gamma|=0.9471
+2026-09-28 08:32:52,787 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 2 42' response received
+2026-09-28 08:32:52,788 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 38% -> C1=(6,63), C2=(2,42) | Z=(76.802,366.899) | gamma=(0.9159,0.2435) | |gamma|=0.9477
+2026-09-28 08:32:52,798 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 2 33' response received
+2026-09-28 08:32:52,800 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 36% -> C1=(6,63), C2=(2,33) | Z=(102.368,414.296) | gamma=(0.9218,0.2126) | |gamma|=0.9460
+2026-09-28 08:32:52,810 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 2 24' response received
+2026-09-28 08:32:52,811 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 34% -> C1=(6,63), C2=(2,24) | Z=(152.398,521.173) | gamma=(0.9353,0.1667) | |gamma|=0.9500
+2026-09-28 08:32:52,822 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 2 15' response received
+2026-09-28 08:32:52,823 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 32% -> C1=(6,63), C2=(2,15) | Z=(230.473,585.427) | gamma=(0.9334,0.1389) | |gamma|=0.9437
+2026-09-28 08:32:52,832 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 2 6' response received
+2026-09-28 08:32:52,835 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 30% -> C1=(6,63), C2=(2,6) | Z=(334.879,936.187) | gamma=(0.9624,0.0914) | |gamma|=0.9668
+2026-09-28 08:32:52,845 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 1 61' response received
+2026-09-28 08:32:52,847 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 28% -> C1=(6,63), C2=(1,61) | Z=(668.213,854.424) | gamma=(0.9424,0.0686) | |gamma|=0.9448
+2026-09-28 08:32:52,857 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 1 52' response received
+2026-09-28 08:32:52,858 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 26% -> C1=(6,63), C2=(1,52) | Z=(1397.677,1007.186) | gamma=(0.9535,0.0324) | |gamma|=0.9540
+2026-09-28 08:32:52,868 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 1 43' response received
+2026-09-28 08:32:52,869 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 24% -> C1=(6,63), C2=(1,43) | Z=(1547.095,-496.980) | gamma=(0.9429,-0.0178) | |gamma|=0.9431
+2026-09-28 08:32:52,880 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 1 34' response received
+2026-09-28 08:32:52,881 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 22% -> C1=(6,63), C2=(1,34) | Z=(707.029,-839.817) | gamma=(0.9408,-0.0657) | |gamma|=0.9431
+2026-09-28 08:32:52,892 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 1 25' response received
+2026-09-28 08:32:52,893 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 20% -> C1=(6,63), C2=(1,25) | Z=(328.693,-657.910) | gamma=(0.9343,-0.1142) | |gamma|=0.9412
+2026-09-28 08:32:52,903 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 1 16' response received
+2026-09-28 08:32:52,904 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 18% -> C1=(6,63), C2=(1,16) | Z=(168.437,-491.112) | gamma=(0.9244,-0.1700) | |gamma|=0.9399
+2026-09-28 08:32:52,914 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 1 8' response received
+2026-09-28 08:32:52,915 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 16% -> C1=(6,63), C2=(1,8) | Z=(114.089,-412.011) | gamma=(0.9166,-0.2095) | |gamma|=0.9402
+2026-09-28 08:32:52,925 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 0 63' response received
+2026-09-28 08:32:52,926 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 14% -> C1=(6,63), C2=(0,63) | Z=(77.748,-336.755) | gamma=(0.9015,-0.2596) | |gamma|=0.9382
+2026-09-28 08:32:52,937 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 0 54' response received
+2026-09-28 08:32:52,938 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 12% -> C1=(6,63), C2=(0,54) | Z=(54.866,-285.758) | gamma=(0.8868,-0.3084) | |gamma|=0.9389
+2026-09-28 08:32:52,948 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 0 45' response received
+2026-09-28 08:32:52,949 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct= 10% -> C1=(6,63), C2=(0,45) | Z=(39.758,-241.529) | gamma=(0.8648,-0.3638) | |gamma|=0.9382
+2026-09-28 08:32:52,960 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 0 36' response received
+2026-09-28 08:32:52,961 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct=  8% -> C1=(6,63), C2=(0,36) | Z=(29.819,-209.606) | gamma=(0.8413,-0.4167) | |gamma|=0.9389
+2026-09-28 08:32:52,971 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 0 27' response received
+2026-09-28 08:32:52,972 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct=  6% -> C1=(6,63), C2=(0,27) | Z=(23.083,-182.265) | gamma=(0.8105,-0.4727) | |gamma|=0.9382
+2026-09-28 08:32:52,983 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 0 18' response received
+2026-09-28 08:32:52,984 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct=  4% -> C1=(6,63), C2=(0,18) | Z=(18.037,-160.751) | gamma=(0.7767,-0.5276) | |gamma|=0.9389
+2026-09-28 08:32:52,993 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 0 9' response received
+2026-09-28 08:32:52,994 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct=  2% -> C1=(6,63), C2=(0,9) | Z=(14.654,-143.777) | gamma=(0.7398,-0.5785) | |gamma|=0.9392
+2026-09-28 08:32:53,004 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 0 0' response received
+2026-09-28 08:32:53,005 | INFO     | MainThread | evc_gui.ui.main_window | LF Line 3 pct=  0% -> C1=(6,63), C2=(0,0) | Z=(11.799,-128.253) | gamma=(0.6951,-0.6328) | |gamma|=0.9400
+2026-09-28 08:32:53,014 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 63 0 0' response received
+2026-09-28 08:32:53,025 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 54 0 0' response received
+2026-09-28 08:32:53,035 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 45 0 0' response received
+2026-09-28 08:32:53,045 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 36 0 0' response received
+2026-09-28 08:32:53,055 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 27 0 0' response received
+2026-09-28 08:32:53,066 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 18 0 0' response received
+2026-09-28 08:32:53,077 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 9 0 0' response received
+2026-09-28 08:32:53,089 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 6 0 0 0' response received
+2026-09-28 08:32:53,100 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 5 55 0 0' response received
+2026-09-28 08:32:53,110 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 5 47 0 0' response received
+2026-09-28 08:32:53,121 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 5 38 0 0' response received
+2026-09-28 08:32:53,131 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 5 29 0 0' response received
+2026-09-28 08:32:53,142 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 5 20 0 0' response received
+2026-09-28 08:32:53,152 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 5 11 0 0' response received
+2026-09-28 08:32:53,163 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 5 2 0 0' response received
+2026-09-28 08:32:53,173 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 4 57 0 0' response received
+2026-09-28 08:32:53,184 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 4 48 0 0' response received
+2026-09-28 08:32:53,194 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 4 39 0 0' response received
+2026-09-28 08:32:53,204 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 4 30 0 0' response received
+2026-09-28 08:32:53,214 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 4 21 0 0' response received
+2026-09-28 08:32:53,224 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 4 12 0 0' response received
+2026-09-28 08:32:53,236 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 4 3 0 0' response received
+2026-09-28 08:32:53,246 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 3 58 0 0' response received
+2026-09-28 08:32:53,256 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 3 49 0 0' response received
+2026-09-28 08:32:53,266 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 3 40 0 0' response received
+2026-09-28 08:32:53,276 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 3 32 0 0' response received
+2026-09-28 08:32:53,286 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 3 23 0 0' response received
+2026-09-28 08:32:53,297 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 3 14 0 0' response received
+2026-09-28 08:32:53,308 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 3 5 0 0' response received
+2026-09-28 08:32:53,318 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 2 60 0 0' response received
+2026-09-28 08:32:53,328 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 2 51 0 0' response received
+2026-09-28 08:32:53,339 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 2 42 0 0' response received
+2026-09-28 08:32:53,350 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 2 33 0 0' response received
+2026-09-28 08:32:53,360 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 2 24 0 0' response received
+2026-09-28 08:32:53,370 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 2 15 0 0' response received
+2026-09-28 08:32:53,381 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 2 6 0 0' response received
+2026-09-28 08:32:53,392 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 1 61 0 0' response received
+2026-09-28 08:32:53,402 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 1 52 0 0' response received
+2026-09-28 08:32:53,412 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 1 43 0 0' response received
+2026-09-28 08:32:53,423 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 1 34 0 0' response received
+2026-09-28 08:32:53,433 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 1 25 0 0' response received
+2026-09-28 08:32:53,443 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 1 16 0 0' response received
+2026-09-28 08:32:53,454 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 1 8 0 0' response received
+2026-09-28 08:32:53,464 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 63 0 0' response received
+2026-09-28 08:32:53,474 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 54 0 0' response received
+2026-09-28 08:32:53,485 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 45 0 0' response received
+2026-09-28 08:32:53,495 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 36 0 0' response received
+2026-09-28 08:32:53,505 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 27 0 0' response received
+2026-09-28 08:32:53,515 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 18 0 0' response received
+2026-09-28 08:32:53,527 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 9 0 0' response received
+2026-09-28 08:32:53,538 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show lf 0 0 0 0' response received
+2026-09-28 08:32:53,545 | INFO     | MainThread | evc_gui.ui.main_window | Contour CSV exported: C:\Users\vhuang01\PycharmProjects\EVC_GUI\dist\logs\contour_export_441000xx_408pts.csv
+2026-09-28 08:32:53,545 | INFO     | MainThread | evc_gui.ui.main_window | Loaded 408 Z-parameter edge points for contour
+2026-09-28 08:32:53,548 | INFO     | MainThread | evc_gui.state_machine | State transition DOWNLOADING_CONTOUR -> IDLE: Contour download complete
+2026-09-28 08:32:53,549 | INFO     | MainThread | evc_gui.ui.main_window | DOWNLOADING_CONTOUR -> IDLE: Contour download complete
+2026-09-28 08:33:01,319 | INFO     | MainThread | evc_gui.state_machine | State transition IDLE -> SCAN_EQUIPMENT: Run requested
+2026-09-28 08:33:01,319 | INFO     | MainThread | evc_gui.ui.main_window | IDLE -> SCAN_EQUIPMENT: Run requested
+2026-09-28 08:33:01,326 | INFO     | MainThread | evc_gui.services.serial_service | Command 'ver' response received
+2026-09-28 08:33:01,328 | INFO     | MainThread | evc_gui.ui.main_window | ver response:
+ver
+EVC Quantum (2013/2060)D DNET (782000003) Version 1.1.0.41
+FPGA (783000003) Version 1.0.0.114
+00:31:24>
+2026-09-28 08:33:01,328 | INFO     | MainThread | evc_gui.ui.main_window | Detected product type: Quantum
+2026-09-28 08:33:01,328 | INFO     | MainThread | evc_gui.ui.main_window | Detected firmware: EVC Quantum (2013/2060)D DNET (782000003) Version 1.1.0.41
+2026-09-28 08:33:01,333 | INFO     | MainThread | evc_gui.services.serial_service | Command 'sn' response received
+2026-09-28 08:33:01,334 | INFO     | MainThread | evc_gui.ui.main_window | sn response:
+sn
+Board S/N: 3722-00019-710
+Unit  S/N: 441000xx
+00:31:24>
+2026-09-28 08:33:01,334 | INFO     | MainThread | evc_gui.ui.main_window | Detected product type: Quantum
+2026-09-28 08:33:14,675 | INFO     | MainThread | evc_gui.app | Starting EVC GUI v26.0.0
+2026-09-28 08:33:14,765 | INFO     | MainThread | evc_gui.ui.main_window | COM scan complete: 4 port(s) found
+2026-09-28 08:33:14,798 | INFO     | MainThread | evc_gui.state_machine | State transition INITIALIZATION -> IDLE: Initialization complete
+2026-09-28 08:33:14,798 | INFO     | MainThread | evc_gui.ui.main_window | INITIALIZATION -> IDLE: Initialization complete
+2026-09-28 08:33:24,166 | INFO     | MainThread | evc_gui.state_machine | State transition IDLE -> SCAN_EQUIPMENT: Preparing scan sequence
+2026-09-28 08:33:24,166 | INFO     | MainThread | evc_gui.ui.main_window | IDLE -> SCAN_EQUIPMENT: Preparing scan sequence
+2026-09-28 08:33:24,166 | INFO     | MainThread | evc_gui.state_machine | State transition SCAN_EQUIPMENT -> CHECK_CONNECTION: Opening serial port
+2026-09-28 08:33:24,166 | INFO     | MainThread | evc_gui.ui.main_window | SCAN_EQUIPMENT -> CHECK_CONNECTION: Opening serial port
+2026-09-28 08:33:24,239 | INFO     | MainThread | evc_gui.services.serial_service | Serial connected: port=COM63 baud=57600
+2026-09-28 08:33:24,239 | INFO     | MainThread | evc_gui.ui.main_window | Connected to COM63 at 57600 baud
+2026-09-28 08:33:24,752 | INFO     | MainThread | evc_gui.services.serial_service | Command 'ver' response received
+2026-09-28 08:33:25,326 | INFO     | MainThread | evc_gui.services.serial_service | Command 'ver' response received
+2026-09-28 08:33:25,900 | INFO     | MainThread | evc_gui.services.serial_service | Command 'ver' response received
+2026-09-28 08:33:25,961 | INFO     | MainThread | evc_gui.ui.main_window | ver response:
+�����
+2026-09-28 08:33:25,961 | INFO     | MainThread | evc_gui.ui.main_window | Invalid ver response content (likely baud mismatch)
+2026-09-28 08:33:25,962 | INFO     | MainThread | evc_gui.ui.main_window | Identity validation failed at 57600 baud
+2026-09-28 08:33:26,005 | INFO     | MainThread | evc_gui.services.serial_service | Serial disconnected
+2026-09-28 08:33:26,076 | INFO     | MainThread | evc_gui.services.serial_service | Serial connected: port=COM63 baud=230400
+2026-09-28 08:33:26,077 | INFO     | MainThread | evc_gui.ui.main_window | Connected to COM63 at 230400 baud
+2026-09-28 08:33:26,187 | INFO     | MainThread | evc_gui.services.serial_service | Command 'ver' response received
+2026-09-28 08:33:26,360 | INFO     | MainThread | evc_gui.services.serial_service | Command 'ver' response received
+2026-09-28 08:33:26,370 | INFO     | MainThread | evc_gui.ui.main_window | ver response:
+ver
+EVC Tykon DNET (782000031) Version 0.1.0.40
+FPGA (783000031) Version 1.0.0.5
+18:38:59>
+2026-09-28 08:33:26,370 | INFO     | MainThread | evc_gui.ui.main_window | Detected product type: Tykon
+2026-09-28 08:33:26,370 | INFO     | MainThread | evc_gui.ui.main_window | Detected firmware: EVC Tykon DNET (782000031) Version 0.1.0.40
+2026-09-28 08:33:26,482 | INFO     | MainThread | evc_gui.services.serial_service | Command 'sn' response received
+2026-09-28 08:33:26,492 | INFO     | MainThread | evc_gui.ui.main_window | sn response:
+sn
+Board S/N: EVC_ctrl_TF10
+Unit  S/N: 5330TF10
+Unit HW Rev: D
+18:38:59>
+2026-09-28 08:33:26,492 | INFO     | MainThread | evc_gui.ui.main_window | Detected product type: Tykon
+2026-09-28 08:33:26,492 | INFO     | MainThread | evc_gui.ui.main_window | Handshake OK at 230400 baud
+2026-09-28 08:33:26,493 | INFO     | MainThread | evc_gui.state_machine | State transition CHECK_CONNECTION -> GETTING_START: Communication path validated
+2026-09-28 08:33:26,493 | INFO     | MainThread | evc_gui.ui.main_window | CHECK_CONNECTION -> GETTING_START: Communication path validated
+2026-09-28 08:33:26,493 | INFO     | MainThread | evc_gui.state_machine | State transition GETTING_START -> IDLE: Ready for probe or run
+2026-09-28 08:33:26,493 | INFO     | MainThread | evc_gui.ui.main_window | GETTING_START -> IDLE: Ready for probe or run
+2026-09-28 08:33:26,493 | INFO     | MainThread | evc_gui.state_machine | State transition IDLE -> DOWNLOADING_CONTOUR: Auto contour download after scan
+2026-09-28 08:33:26,493 | INFO     | MainThread | evc_gui.ui.main_window | IDLE -> DOWNLOADING_CONTOUR: Auto contour download after scan
+2026-09-28 08:33:26,496 | INFO     | MainThread | evc_gui.ui.main_window | Auto-downloading contour Z-parameters after equipment scan...
+2026-09-28 08:33:26,497 | INFO     | MainThread | evc_gui.ui.main_window | Loading Z-parameters for contour plot (edge positions)...
+2026-09-28 08:33:26,497 | INFO     | MainThread | evc_gui.ui.main_window | Querying f1 band edge positions...
+2026-09-28 08:33:26,609 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 0 0' response received
+2026-09-28 08:33:26,733 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 0 9' response received
+2026-09-28 08:33:26,855 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 0 18' response received
+2026-09-28 08:33:26,978 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 0 27' response received
+2026-09-28 08:33:27,101 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 0 36' response received
+2026-09-28 08:33:27,224 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 0 45' response received
+2026-09-28 08:33:27,346 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 0 54' response received
+2026-09-28 08:33:27,469 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 0 63' response received
+2026-09-28 08:33:27,591 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 1 8' response received
+2026-09-28 08:33:27,713 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 1 16' response received
+2026-09-28 08:33:27,835 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 1 25' response received
+2026-09-28 08:33:27,957 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 1 34' response received
+2026-09-28 08:33:28,079 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 1 43' response received
+2026-09-28 08:33:28,202 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 1 52' response received
+2026-09-28 08:33:28,325 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 1 61' response received
+2026-09-28 08:33:28,447 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 2 6' response received
+2026-09-28 08:33:28,570 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 2 15' response received
+2026-09-28 08:33:28,693 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 2 24' response received
+2026-09-28 08:33:28,816 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 2 33' response received
+2026-09-28 08:33:28,938 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 2 42' response received
+2026-09-28 08:33:29,061 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 2 51' response received
+2026-09-28 08:33:29,184 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 2 60' response received
+2026-09-28 08:33:29,307 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 3 5' response received
+2026-09-28 08:33:29,428 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 3 14' response received
+2026-09-28 08:33:29,550 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 3 23' response received
+2026-09-28 08:33:29,673 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 3 32' response received
+2026-09-28 08:33:29,795 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 3 40' response received
+2026-09-28 08:33:29,916 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 3 49' response received
+2026-09-28 08:33:30,039 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 3 58' response received
+2026-09-28 08:33:30,161 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 4 3' response received
+2026-09-28 08:33:30,284 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 4 12' response received
+2026-09-28 08:33:30,406 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 4 21' response received
+2026-09-28 08:33:30,529 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 4 30' response received
+2026-09-28 08:33:30,652 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 4 39' response received
+2026-09-28 08:33:30,775 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 4 48' response received
+2026-09-28 08:33:30,897 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 4 57' response received
+2026-09-28 08:33:31,020 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 5 2' response received
+2026-09-28 08:33:31,142 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 5 11' response received
+2026-09-28 08:33:31,265 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 5 20' response received
+2026-09-28 08:33:31,388 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 5 29' response received
+2026-09-28 08:33:31,509 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 5 38' response received
+2026-09-28 08:33:31,632 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 5 47' response received
+2026-09-28 08:33:31,754 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 5 55' response received
+2026-09-28 08:33:31,877 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 6 0' response received
+2026-09-28 08:33:31,999 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 6 9' response received
+2026-09-28 08:33:32,121 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 6 18' response received
+2026-09-28 08:33:32,243 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 6 27' response received
+2026-09-28 08:33:32,365 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 6 36' response received
+2026-09-28 08:33:32,487 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 6 45' response received
+2026-09-28 08:33:32,609 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 6 54' response received
+2026-09-28 08:33:32,732 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 6 63' response received
+2026-09-28 08:33:32,854 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 6 63' response received
+2026-09-28 08:33:32,977 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 9 6 63' response received
+2026-09-28 08:33:33,100 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 18 6 63' response received
+2026-09-28 08:33:33,222 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 27 6 63' response received
+2026-09-28 08:33:33,345 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 36 6 63' response received
+2026-09-28 08:33:33,467 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 45 6 63' response received
+2026-09-28 08:33:33,589 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 54 6 63' response received
+2026-09-28 08:33:33,712 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 63 6 63' response received
+2026-09-28 08:33:33,834 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 1 8 6 63' response received
+2026-09-28 08:33:33,956 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 1 16 6 63' response received
+2026-09-28 08:33:34,078 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 1 25 6 63' response received
+2026-09-28 08:33:34,201 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 1 34 6 63' response received
+2026-09-28 08:33:34,324 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 1 43 6 63' response received
+2026-09-28 08:33:34,446 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 1 52 6 63' response received
+2026-09-28 08:33:34,569 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 1 61 6 63' response received
+2026-09-28 08:33:34,692 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 2 6 6 63' response received
+2026-09-28 08:33:34,814 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 2 15 6 63' response received
+2026-09-28 08:33:34,937 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 2 24 6 63' response received
+2026-09-28 08:33:35,060 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 2 33 6 63' response received
+2026-09-28 08:33:35,183 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 2 42 6 63' response received
+2026-09-28 08:33:35,305 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 2 51 6 63' response received
+2026-09-28 08:33:35,428 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 2 60 6 63' response received
+2026-09-28 08:33:35,551 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 3 5 6 63' response received
+2026-09-28 08:33:35,673 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 3 14 6 63' response received
+2026-09-28 08:33:35,795 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 3 23 6 63' response received
+2026-09-28 08:33:35,918 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 3 32 6 63' response received
+2026-09-28 08:33:36,040 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 3 40 6 63' response received
+2026-09-28 08:33:36,163 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 3 49 6 63' response received
+2026-09-28 08:33:36,286 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 3 58 6 63' response received
+2026-09-28 08:33:36,408 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 4 3 6 63' response received
+2026-09-28 08:33:36,532 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 4 12 6 63' response received
+2026-09-28 08:33:36,654 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 4 21 6 63' response received
+2026-09-28 08:33:36,777 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 4 30 6 63' response received
+2026-09-28 08:33:36,899 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 4 39 6 63' response received
+2026-09-28 08:33:37,022 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 4 48 6 63' response received
+2026-09-28 08:33:37,145 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 4 57 6 63' response received
+2026-09-28 08:33:37,268 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 5 2 6 63' response received
+2026-09-28 08:33:37,391 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 5 11 6 63' response received
+2026-09-28 08:33:37,513 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 5 20 6 63' response received
+2026-09-28 08:33:37,635 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 5 29 6 63' response received
+2026-09-28 08:33:37,757 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 5 38 6 63' response received
+2026-09-28 08:33:37,879 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 5 47 6 63' response received
+2026-09-28 08:33:38,001 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 5 55 6 63' response received
+2026-09-28 08:33:38,123 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 0 6 63' response received
+2026-09-28 08:33:38,247 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 9 6 63' response received
+2026-09-28 08:33:38,369 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 18 6 63' response received
+2026-09-28 08:33:38,490 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 27 6 63' response received
+2026-09-28 08:33:38,614 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 36 6 63' response received
+2026-09-28 08:33:38,736 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 45 6 63' response received
+2026-09-28 08:33:38,859 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 54 6 63' response received
+2026-09-28 08:33:38,982 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 6 63' response received
+2026-09-28 08:33:39,104 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 6 63' response received
+2026-09-28 08:33:39,115 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct=100% -> C1=(6,63), C2=(6,63) | Z=(-0.203,-14.331) | gamma=(-0.8546,-0.5337) | |gamma|=1.0075
+2026-09-28 08:33:39,226 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 6 54' response received
+2026-09-28 08:33:39,237 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 98% -> C1=(6,63), C2=(6,54) | Z=(-0.200,-14.080) | gamma=(-0.8594,-0.5257) | |gamma|=1.0074
+2026-09-28 08:33:39,350 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 6 45' response received
+2026-09-28 08:33:39,360 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 96% -> C1=(6,63), C2=(6,45) | Z=(-0.199,-13.822) | gamma=(-0.8644,-0.5175) | |gamma|=1.0074
+2026-09-28 08:33:39,472 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 6 36' response received
+2026-09-28 08:33:39,483 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 94% -> C1=(6,63), C2=(6,36) | Z=(-0.200,-13.564) | gamma=(-0.8693,-0.5091) | |gamma|=1.0075
+2026-09-28 08:33:39,594 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 6 27' response received
+2026-09-28 08:33:39,605 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 92% -> C1=(6,63), C2=(6,27) | Z=(-0.189,-13.286) | gamma=(-0.8742,-0.4999) | |gamma|=1.0071
+2026-09-28 08:33:39,717 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 6 18' response received
+2026-09-28 08:33:39,728 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 90% -> C1=(6,63), C2=(6,18) | Z=(-0.189,-13.022) | gamma=(-0.8792,-0.4913) | |gamma|=1.0071
+2026-09-28 08:33:39,839 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 6 9' response received
+2026-09-28 08:33:39,850 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 88% -> C1=(6,63), C2=(6,9) | Z=(-0.188,-12.744) | gamma=(-0.8842,-0.4820) | |gamma|=1.0071
+2026-09-28 08:33:39,963 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 6 0' response received
+2026-09-28 08:33:39,973 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 86% -> C1=(6,63), C2=(6,0) | Z=(-0.187,-12.478) | gamma=(-0.8890,-0.4732) | |gamma|=1.0071
+2026-09-28 08:33:40,085 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 5 55' response received
+2026-09-28 08:33:40,096 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 84% -> C1=(6,63), C2=(5,55) | Z=(-0.189,-12.566) | gamma=(-0.8875,-0.4762) | |gamma|=1.0071
+2026-09-28 08:33:40,208 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 5 47' response received
+2026-09-28 08:33:40,218 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 82% -> C1=(6,63), C2=(5,47) | Z=(-0.185,-12.312) | gamma=(-0.8919,-0.4676) | |gamma|=1.0070
+2026-09-28 08:33:40,331 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 5 38' response received
+2026-09-28 08:33:40,341 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 80% -> C1=(6,63), C2=(5,38) | Z=(-0.183,-12.037) | gamma=(-0.8966,-0.4583) | |gamma|=1.0070
+2026-09-28 08:33:40,454 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 5 29' response received
+2026-09-28 08:33:40,465 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 78% -> C1=(6,63), C2=(5,29) | Z=(-0.182,-11.706) | gamma=(-0.9023,-0.4470) | |gamma|=1.0069
+2026-09-28 08:33:40,577 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 5 20' response received
+2026-09-28 08:33:40,588 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 76% -> C1=(6,63), C2=(5,20) | Z=(-0.180,-11.429) | gamma=(-0.9069,-0.4375) | |gamma|=1.0069
+2026-09-28 08:33:40,700 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 5 11' response received
+2026-09-28 08:33:40,710 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 74% -> C1=(6,63), C2=(5,11) | Z=(-0.170,-11.117) | gamma=(-0.9117,-0.4265) | |gamma|=1.0065
+2026-09-28 08:33:40,823 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 5 2' response received
+2026-09-28 08:33:40,833 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 72% -> C1=(6,63), C2=(5,2) | Z=(-0.169,-10.832) | gamma=(-0.9162,-0.4165) | |gamma|=1.0065
+2026-09-28 08:33:40,946 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 4 57' response received
+2026-09-28 08:33:40,957 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 70% -> C1=(6,63), C2=(4,57) | Z=(-0.173,-10.613) | gamma=(-0.9198,-0.4089) | |gamma|=1.0066
+2026-09-28 08:33:41,069 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 4 48' response received
+2026-09-28 08:33:41,080 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 68% -> C1=(6,63), C2=(4,48) | Z=(-0.169,-10.318) | gamma=(-0.9243,-0.3984) | |gamma|=1.0065
+2026-09-28 08:33:41,193 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 4 39' response received
+2026-09-28 08:33:41,203 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 66% -> C1=(6,63), C2=(4,39) | Z=(-0.165,-9.991) | gamma=(-0.9291,-0.3868) | |gamma|=1.0064
+2026-09-28 08:33:41,315 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 4 30' response received
+2026-09-28 08:33:41,326 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 64% -> C1=(6,63), C2=(4,30) | Z=(-0.158,-9.616) | gamma=(-0.9343,-0.3732) | |gamma|=1.0061
+2026-09-28 08:33:41,438 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 4 21' response received
+2026-09-28 08:33:41,448 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 62% -> C1=(6,63), C2=(4,21) | Z=(-0.155,-9.308) | gamma=(-0.9386,-0.3620) | |gamma|=1.0060
+2026-09-28 08:33:41,561 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 4 12' response received
+2026-09-28 08:33:41,571 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 60% -> C1=(6,63), C2=(4,12) | Z=(-0.152,-8.960) | gamma=(-0.9433,-0.3493) | |gamma|=1.0059
+2026-09-28 08:33:41,683 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 4 3' response received
+2026-09-28 08:33:41,694 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 58% -> C1=(6,63), C2=(4,3) | Z=(-0.149,-8.643) | gamma=(-0.9474,-0.3377) | |gamma|=1.0058
+2026-09-28 08:33:41,806 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 3 58' response received
+2026-09-28 08:33:41,817 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 56% -> C1=(6,63), C2=(3,58) | Z=(-0.150,-8.428) | gamma=(-0.9503,-0.3297) | |gamma|=1.0059
+2026-09-28 08:33:41,929 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 3 49' response received
+2026-09-28 08:33:41,939 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 54% -> C1=(6,63), C2=(3,49) | Z=(-0.144,-8.112) | gamma=(-0.9540,-0.3180) | |gamma|=1.0056
+2026-09-28 08:33:42,052 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 3 40' response received
+2026-09-28 08:33:42,062 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 52% -> C1=(6,63), C2=(3,40) | Z=(-0.141,-7.745) | gamma=(-0.9584,-0.3042) | |gamma|=1.0055
+2026-09-28 08:33:42,175 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 3 32' response received
+2026-09-28 08:33:42,185 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 50% -> C1=(6,63), C2=(3,32) | Z=(-0.140,-7.456) | gamma=(-0.9618,-0.2933) | |gamma|=1.0055
+2026-09-28 08:33:42,298 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 3 23' response received
+2026-09-28 08:33:42,308 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 48% -> C1=(6,63), C2=(3,23) | Z=(-0.131,-7.015) | gamma=(-0.9663,-0.2766) | |gamma|=1.0052
+2026-09-28 08:33:42,420 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 3 14' response received
+2026-09-28 08:33:42,431 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 46% -> C1=(6,63), C2=(3,14) | Z=(-0.127,-6.628) | gamma=(-0.9703,-0.2619) | |gamma|=1.0050
+2026-09-28 08:33:42,543 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 3 5' response received
+2026-09-28 08:33:42,553 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 44% -> C1=(6,63), C2=(3,5) | Z=(-0.124,-6.291) | gamma=(-0.9736,-0.2489) | |gamma|=1.0049
+2026-09-28 08:33:42,666 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 2 60' response received
+2026-09-28 08:33:42,676 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 42% -> C1=(6,63), C2=(2,60) | Z=(-0.117,-5.819) | gamma=(-0.9778,-0.2307) | |gamma|=1.0046
+2026-09-28 08:33:42,789 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 2 51' response received
+2026-09-28 08:33:42,800 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 40% -> C1=(6,63), C2=(2,51) | Z=(-0.115,-5.475) | gamma=(-0.9807,-0.2174) | |gamma|=1.0046
+2026-09-28 08:33:42,912 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 2 42' response received
+2026-09-28 08:33:42,923 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 38% -> C1=(6,63), C2=(2,42) | Z=(-0.110,-5.065) | gamma=(-0.9839,-0.2014) | |gamma|=1.0043
+2026-09-28 08:33:43,035 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 2 33' response received
+2026-09-28 08:33:43,046 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 36% -> C1=(6,63), C2=(2,33) | Z=(-0.107,-4.704) | gamma=(-0.9866,-0.1873) | |gamma|=1.0043
+2026-09-28 08:33:43,158 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 2 24' response received
+2026-09-28 08:33:43,169 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 34% -> C1=(6,63), C2=(2,24) | Z=(-0.096,-4.206) | gamma=(-0.9897,-0.1677) | |gamma|=1.0038
+2026-09-28 08:33:43,281 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 2 15' response received
+2026-09-28 08:33:43,291 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 32% -> C1=(6,63), C2=(2,15) | Z=(-0.090,-3.773) | gamma=(-0.9922,-0.1506) | |gamma|=1.0036
+2026-09-28 08:33:43,403 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 2 6' response received
+2026-09-28 08:33:43,414 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 30% -> C1=(6,63), C2=(2,6) | Z=(-0.091,-3.398) | gamma=(-0.9944,-0.1358) | |gamma|=1.0036
+2026-09-28 08:33:43,525 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 1 61' response received
+2026-09-28 08:33:43,536 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 28% -> C1=(6,63), C2=(1,61) | Z=(-0.081,-2.835) | gamma=(-0.9968,-0.1134) | |gamma|=1.0032
+2026-09-28 08:33:43,648 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 1 52' response received
+2026-09-28 08:33:43,659 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 26% -> C1=(6,63), C2=(1,52) | Z=(-0.078,-2.455) | gamma=(-0.9983,-0.0983) | |gamma|=1.0031
+2026-09-28 08:33:43,771 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 1 43' response received
+2026-09-28 08:33:43,782 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 24% -> C1=(6,63), C2=(1,43) | Z=(-0.071,-2.000) | gamma=(-0.9996,-0.0801) | |gamma|=1.0028
+2026-09-28 08:33:43,895 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 1 34' response received
+2026-09-28 08:33:43,905 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 22% -> C1=(6,63), C2=(1,34) | Z=(-0.071,-1.605) | gamma=(-1.0008,-0.0643) | |gamma|=1.0028
+2026-09-28 08:33:44,017 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 1 25' response received
+2026-09-28 08:33:44,028 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 20% -> C1=(6,63), C2=(1,25) | Z=(-0.059,-1.035) | gamma=(-1.0015,-0.0415) | |gamma|=1.0024
+2026-09-28 08:33:44,141 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 1 16' response received
+2026-09-28 08:33:44,151 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 18% -> C1=(6,63), C2=(1,16) | Z=(-0.057,-0.630) | gamma=(-1.0019,-0.0253) | |gamma|=1.0023
+2026-09-28 08:33:44,264 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 1 8' response received
+2026-09-28 08:33:44,274 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 16% -> C1=(6,63), C2=(1,8) | Z=(-0.052,-0.175) | gamma=(-1.0021,-0.0070) | |gamma|=1.0021
+2026-09-28 08:33:44,386 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 0 63' response received
+2026-09-28 08:33:44,397 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 14% -> C1=(6,63), C2=(0,63) | Z=(-0.038,0.308) | gamma=(-1.0015,0.0123) | |gamma|=1.0015
+2026-09-28 08:33:44,509 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 0 54' response received
+2026-09-28 08:33:44,520 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 12% -> C1=(6,63), C2=(0,54) | Z=(-0.036,0.740) | gamma=(-1.0010,0.0296) | |gamma|=1.0015
+2026-09-28 08:33:44,631 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 0 45' response received
+2026-09-28 08:33:44,642 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct= 10% -> C1=(6,63), C2=(0,45) | Z=(-0.032,1.242) | gamma=(-1.0000,0.0497) | |gamma|=1.0013
+2026-09-28 08:33:44,754 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 0 36' response received
+2026-09-28 08:33:44,765 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct=  8% -> C1=(6,63), C2=(0,36) | Z=(-0.029,1.685) | gamma=(-0.9989,0.0674) | |gamma|=1.0012
+2026-09-28 08:33:44,877 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 0 27' response received
+2026-09-28 08:33:44,888 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct=  6% -> C1=(6,63), C2=(0,27) | Z=(-0.016,2.320) | gamma=(-0.9963,0.0927) | |gamma|=1.0006
+2026-09-28 08:33:45,001 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 0 18' response received
+2026-09-28 08:33:45,012 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct=  4% -> C1=(6,63), C2=(0,18) | Z=(-0.014,2.777) | gamma=(-0.9944,0.1108) | |gamma|=1.0006
+2026-09-28 08:33:45,123 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 0 9' response received
+2026-09-28 08:33:45,134 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct=  2% -> C1=(6,63), C2=(0,9) | Z=(-0.008,3.336) | gamma=(-0.9914,0.1329) | |gamma|=1.0003
+2026-09-28 08:33:45,246 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 0 0' response received
+2026-09-28 08:33:45,257 | INFO     | MainThread | evc_gui.ui.main_window | F1 Line 3 pct=  0% -> C1=(6,63), C2=(0,0) | Z=(-0.001,3.807) | gamma=(-0.9885,0.1514) | |gamma|=1.0000
+2026-09-28 08:33:45,369 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 63 0 0' response received
+2026-09-28 08:33:45,492 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 54 0 0' response received
+2026-09-28 08:33:45,615 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 45 0 0' response received
+2026-09-28 08:33:45,738 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 36 0 0' response received
+2026-09-28 08:33:45,861 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 27 0 0' response received
+2026-09-28 08:33:45,984 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 18 0 0' response received
+2026-09-28 08:33:46,106 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 9 0 0' response received
+2026-09-28 08:33:46,228 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 6 0 0 0' response received
+2026-09-28 08:33:46,350 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 5 55 0 0' response received
+2026-09-28 08:33:46,473 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 5 47 0 0' response received
+2026-09-28 08:33:46,596 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 5 38 0 0' response received
+2026-09-28 08:33:46,718 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 5 29 0 0' response received
+2026-09-28 08:33:46,841 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 5 20 0 0' response received
+2026-09-28 08:33:46,964 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 5 11 0 0' response received
+2026-09-28 08:33:47,086 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 5 2 0 0' response received
+2026-09-28 08:33:47,208 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 4 57 0 0' response received
+2026-09-28 08:33:47,331 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 4 48 0 0' response received
+2026-09-28 08:33:47,454 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 4 39 0 0' response received
+2026-09-28 08:33:47,577 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 4 30 0 0' response received
+2026-09-28 08:33:47,700 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 4 21 0 0' response received
+2026-09-28 08:33:47,823 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 4 12 0 0' response received
+2026-09-28 08:33:47,945 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 4 3 0 0' response received
+2026-09-28 08:33:48,069 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 3 58 0 0' response received
+2026-09-28 08:33:48,191 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 3 49 0 0' response received
+2026-09-28 08:33:48,314 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 3 40 0 0' response received
+2026-09-28 08:33:48,436 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 3 32 0 0' response received
+2026-09-28 08:33:48,559 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 3 23 0 0' response received
+2026-09-28 08:33:48,682 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 3 14 0 0' response received
+2026-09-28 08:33:48,805 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 3 5 0 0' response received
+2026-09-28 08:33:48,927 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 2 60 0 0' response received
+2026-09-28 08:33:49,050 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 2 51 0 0' response received
+2026-09-28 08:33:49,174 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 2 42 0 0' response received
+2026-09-28 08:33:49,296 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 2 33 0 0' response received
+2026-09-28 08:33:49,419 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 2 24 0 0' response received
+2026-09-28 08:33:49,541 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 2 15 0 0' response received
+2026-09-28 08:33:49,664 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 2 6 0 0' response received
+2026-09-28 08:33:49,786 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 1 61 0 0' response received
+2026-09-28 08:33:49,908 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 1 52 0 0' response received
+2026-09-28 08:33:50,031 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 1 43 0 0' response received
+2026-09-28 08:33:50,154 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 1 34 0 0' response received
+2026-09-28 08:33:50,277 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 1 25 0 0' response received
+2026-09-28 08:33:50,399 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 1 16 0 0' response received
+2026-09-28 08:33:50,522 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 1 8 0 0' response received
+2026-09-28 08:33:50,644 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 63 0 0' response received
+2026-09-28 08:33:50,767 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 54 0 0' response received
+2026-09-28 08:33:50,889 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 45 0 0' response received
+2026-09-28 08:33:51,011 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 36 0 0' response received
+2026-09-28 08:33:51,134 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 27 0 0' response received
+2026-09-28 08:33:51,257 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 18 0 0' response received
+2026-09-28 08:33:51,379 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 9 0 0' response received
+2026-09-28 08:33:51,502 | INFO     | MainThread | evc_gui.services.serial_service | Command 'zpar show f1 0 0 0 0' response received
+2026-09-28 08:33:51,516 | INFO     | MainThread | evc_gui.ui.main_window | Contour CSV exported: C:\Users\vhuang01\PycharmProjects\EVC_GUI\dist\logs\contour_export_5330TF10_204pts.csv
+2026-09-28 08:33:51,516 | INFO     | MainThread | evc_gui.ui.main_window | Loaded 204 Z-parameter edge points for contour
+2026-09-28 08:33:51,518 | INFO     | MainThread | evc_gui.state_machine | State transition DOWNLOADING_CONTOUR -> IDLE: Contour download complete
+2026-09-28 08:33:51,519 | INFO     | MainThread | evc_gui.ui.main_window | DOWNLOADING_CONTOUR -> IDLE: Contour download complete
+2026-09-28 08:34:00,871 | INFO     | MainThread | evc_gui.state_machine | State transition IDLE -> SCAN_EQUIPMENT: Run requested
+2026-09-28 08:34:00,871 | INFO     | MainThread | evc_gui.ui.main_window | IDLE -> SCAN_EQUIPMENT: Run requested

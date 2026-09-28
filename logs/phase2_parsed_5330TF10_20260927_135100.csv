@@ -1,0 +1,2 @@
+timestamp,product,serial_number,firmware,session_id,pfwd,pref,c1,c2,vpp,dc_bias,pout,iout,rs,xs
+2026-09-27T13:51:00.540,Tykon,5330TF10,EVC Tykon DNET (782000031) Version 0.1.0.40,ed71898af8fd47aa91655b60bcb6041f,0.0,0.0,100.0,100.0,0.0,-1100.0,0.0,0.0,0.54,50.0

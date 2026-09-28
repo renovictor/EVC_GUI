@@ -3,7 +3,6 @@ __pycache__/
 *.py[cod]
 logs/*.log
 build/
-dist/
 *.spec
 .idea/
 .vscode/

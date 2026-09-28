@@ -23,7 +23,19 @@ class SerialService:
 
     @staticmethod
     def ports() -> list[str]:
-        return [p.device for p in list_ports.comports()]
+        """Get list of available COM ports, excluding Intel AMT and other non-device ports."""
+        return [
+            p.device for p in list_ports.comports()
+            if p.device and not SerialService._should_skip_port(p)
+        ]
+    
+    @staticmethod
+    def _should_skip_port(port_info) -> bool:
+        """Check if a port should be skipped during scanning."""
+        description = port_info.description.lower() if port_info.description else ""
+        # Skip Intel Management and other non-device ports
+        skip_patterns = ["intel", "amt", "management technology"]
+        return any(pattern in description for pattern in skip_patterns)
 
     @property
     def connected(self) -> bool:
