@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented in this file.
 
+## [26.0.1] - 2026-09-28
+
+### Added
+- Bright red progress bar (40px height, thick styling) for contour download visibility.
+- Progress bar shown during long-running contour download operations with real-time updates.
+- Visual feedback for download progress (0-100% fill based on Z-parameter query count).
+
+### Changed
+- Progress bar updates throttled to every 10 queries to prevent serial communication blocking.
+- Progress updates now occur after successful Z-parameter validation to ensure serial integrity.
+- Progress bar automatically hidden when download completes or fails.
+
+### Fixed
+- Progress bar no longer interferes with serial communication during contour download.
+- Z-parameter queries now complete successfully without being interrupted by UI updates.
+
 ## [26.0.0] - 2026-09-28
 
 ### Added
