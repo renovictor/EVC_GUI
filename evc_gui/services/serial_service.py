@@ -64,6 +64,7 @@ class SerialService:
         old_timeout = self._serial.timeout
         deadline = time.monotonic() + timeout
         lines: list[str] = []
+        seen_payload = False
         try:
             self._serial.reset_input_buffer()
             self._serial.write(f"{command}\r\n".encode("ascii", errors="ignore"))
@@ -76,9 +77,15 @@ class SerialService:
                 line = raw.decode(errors="replace").strip()
                 if not line:
                     continue
+                prompt_only = line.endswith(">") and " " not in line
+                # Ignore leading prompt-only lines; wait until command output starts.
+                if prompt_only and not seen_payload:
+                    continue
                 lines.append(line)
-                if line.endswith(">"):
+                if prompt_only:
                     break
+                if line.lower() != command.lower():
+                    seen_payload = True
             response = "\n".join(lines)
             if not lines:
                 return CommandResult(False, f"No response for '{command}'", "")

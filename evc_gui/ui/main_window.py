@@ -47,6 +47,7 @@ HANDSHAKE_TIMEOUT_S = 1.0
 SCAN_COMMAND_TIMEOUT_S = 0.5
 POST_SWITCH_SETTLE_S = 0.35
 VER_RETRY_COUNT = 3
+SCAN_VER_RETRY_COUNT = 3
 
 
 class MainWindow(QMainWindow):
@@ -201,11 +202,7 @@ class MainWindow(QMainWindow):
         self.start_btn.setEnabled(False)
         self.machine.transition(AppState.SCAN_EQUIPMENT, "Preparing scan sequence")
         self.machine.transition(AppState.CHECK_CONNECTION, "Opening serial port")
-        chosen = int(self.baud.currentText())
-        if chosen in START_BAUD_CANDIDATES:
-            candidates = [chosen] + [baud for baud in START_BAUD_CANDIDATES if baud != chosen]
-        else:
-            candidates = list(START_BAUD_CANDIDATES)
+        candidates = self._build_baud_scan_candidates()
         connected = False
         for baud in candidates:
             result = self.serial.connect(self.port.currentText(), baud)
@@ -224,13 +221,15 @@ class MainWindow(QMainWindow):
         if connected:
             self.machine.transition(AppState.GETTING_START, "Communication path validated")
             self.machine.transition(AppState.IDLE, "Ready for probe or run")
+            self._auto_download_contour_after_scan()
             self.probe_btn.setEnabled(True)
             self.port.setEnabled(False)
             self.baud.setEnabled(False)
             self.refresh_btn.setEnabled(False)
             self._update_controls_for_idle()
         else:
-            self.machine.transition(AppState.ERROR, "Unable to communicate at 57600 or 230400 baud")
+            scanned = ", ".join(str(baud) for baud in candidates)
+            self.machine.transition(AppState.ERROR, f"Unable to communicate at scanned baud rates ({scanned})")
             self.start_btn.setEnabled(True)
             self._update_controls_for_idle()
 
@@ -315,7 +314,7 @@ class MainWindow(QMainWindow):
     def _switch_to_high_speed(self) -> bool:
         if self._active_baud == HIGH_SPEED_BAUD:
             ver_result = self._query_ver_with_retry()
-            if not ver_result.ok:
+            if not ver_result.ok or not self._is_valid_ver_response(ver_result.response):
                 self.machine.transition(AppState.ERROR, ver_result.message)
                 self.append(f"High-speed validation failed: {ver_result.message}")
                 return False
@@ -335,7 +334,7 @@ class MainWindow(QMainWindow):
             self.machine.transition(AppState.ERROR, reconnect.message)
             return False
         ver_result = self._query_ver_with_retry()
-        if not ver_result.ok:
+        if not ver_result.ok or not self._is_valid_ver_response(ver_result.response):
             self.machine.transition(AppState.ERROR, ver_result.message)
             self.append(f"Post-switch ver failed: {ver_result.message}")
             return False
@@ -355,13 +354,25 @@ class MainWindow(QMainWindow):
         return last_result
 
     def _query_scan_identity(self, setup_device_log: bool, fail_on_error: bool) -> bool:
-        ver_result = self.serial.send_command("ver", timeout=SCAN_COMMAND_TIMEOUT_S)
-        if not ver_result.ok:
+        ver_result = None
+        for _ in range(SCAN_VER_RETRY_COUNT):
+            result = self.serial.send_command("ver", timeout=SCAN_COMMAND_TIMEOUT_S)
+            ver_result = result
+            if result.ok and self._is_valid_ver_response(result.response):
+                break
+            time.sleep(0.05)
+        if ver_result is None or not ver_result.ok:
             if fail_on_error:
-                self.machine.transition(AppState.ERROR, ver_result.message)
-            self.append(ver_result.message)
+                self.machine.transition(AppState.ERROR, ver_result.message if ver_result else "No ver response")
+            self.append(ver_result.message if ver_result else "No ver response")
             return False
         self.append(f"ver response:\n{ver_result.response}")
+        if not self._is_valid_ver_response(ver_result.response):
+            message = "Invalid ver response content (likely baud mismatch)"
+            if fail_on_error:
+                self.machine.transition(AppState.ERROR, message)
+            self.append(message)
+            return False
         product = self._extract_product_type(ver_result.response)
         if product:
             self.detected_product = product
@@ -389,6 +400,11 @@ class MainWindow(QMainWindow):
         if serial_number:
             self.detected_serial_number = serial_number
             self.serial_number_value.setText(serial_number)
+            if product:
+                product_name = self._resolve_product_name(product, serial_number)
+                self.detected_product = product_name
+                self.product_value.setText(product_name)
+                self.append(f"Detected product type: {product_name}")
             if setup_device_log and not self._device_log_ready:
                 self.log_file = configure_logging(f"evc_gui_{serial_number}")
                 self._device_log_ready = True
@@ -400,6 +416,42 @@ class MainWindow(QMainWindow):
             self.append(message)
             return False
         return True
+
+    def _build_baud_scan_candidates(self) -> list[int]:
+        candidates: list[int] = []
+        ordered: list[int] = []
+        try:
+            ordered.append(int(self.baud.currentText()))
+        except ValueError:
+            pass
+        ordered.extend(START_BAUD_CANDIDATES)
+        for i in range(self.baud.count()):
+            try:
+                ordered.append(int(self.baud.itemText(i)))
+            except ValueError:
+                continue
+        for baud in ordered:
+            if baud not in candidates:
+                candidates.append(baud)
+        return candidates
+
+    @staticmethod
+    def _is_prompt_only_line(line: str) -> bool:
+        return line.endswith(">") and " " not in line
+
+    def _is_valid_ver_response(self, response: str) -> bool:
+        lines = [line.strip() for line in response.splitlines() if line.strip()]
+        payload_lines = [line for line in lines if not self._is_prompt_only_line(line)]
+        if not payload_lines:
+            return False
+        if any("�" in line for line in payload_lines):
+            return False
+        if not any(line.lower() == "ver" for line in payload_lines):
+            return False
+        info_lines = [line for line in payload_lines if line.lower() != "ver"]
+        if any("evc" in line.lower() and "version" in line.lower() for line in info_lines):
+            return True
+        return bool(self._extract_product_type(response) or self._extract_firmware(response))
 
     def _stop_phase2_pipeline(self):
         self._chart_timer.stop()
@@ -470,7 +522,21 @@ class MainWindow(QMainWindow):
             return
         self.state_label.setText(AppState.DOWNLOADING_CONTOUR.name)
         QApplication.processEvents()
-        self._load_and_plot_contour()
+        self._load_and_plot_contour(show_after_load=True)
+
+    def _auto_download_contour_after_scan(self):
+        if self.demo_mode_check.isChecked():
+            return
+        if not self.serial.connected:
+            return
+        if self.smith_chart._contour_cache:
+            return
+        if not self.machine.transition(AppState.DOWNLOADING_CONTOUR, "Auto contour download after scan"):
+            return
+        self.state_label.setText(AppState.DOWNLOADING_CONTOUR.name)
+        QApplication.processEvents()
+        self.append("Auto-downloading contour Z-parameters after equipment scan...")
+        self._load_and_plot_contour(show_after_load=self.smith_chart.contour_check.isChecked())
 
     def _update_controls_for_idle(self):
         demo_mode = self.demo_mode_check.isChecked()
@@ -483,24 +549,64 @@ class MainWindow(QMainWindow):
         self.run_btn.setEnabled(demo_mode or self.serial.connected)
         self.probe_btn.setEnabled(self.serial.connected and not demo_mode)
     
+    def _cap_grid_limits(self) -> tuple[int, int]:
+        """Return (max_coarse, max_fine) for the connected product family."""
+        if self._is_chronos_family() and self._is_chronos_legacy_unit():
+            return 12, 12
+        return 6, 63
+
+    def _is_chronos_family(self) -> bool:
+        product = (self.detected_product or "").strip().lower()
+        return product.startswith("chronos")
+
+    def _resolve_product_name(self, product: str, serial_number: str) -> str:
+        if product.strip().lower() != "chronos":
+            return product
+        prefix = self._serial_prefix(serial_number)
+        if prefix is None:
+            return "Chronos"
+        if 191 <= prefix <= 195:
+            return "Chronos 1"
+        if prefix >= 196:
+            return "Chronos 2.0"
+        return "Chronos"
+
     @staticmethod
-    def _pct_to_cap_position(pct: int) -> int:
-        """Convert percentage to the actual capacitor position index in the 0..447 range."""
+    def _serial_prefix(serial_number: str) -> int | None:
+        serial_digits = "".join(ch for ch in serial_number if ch.isdigit())
+        if len(serial_digits) < 3:
+            return None
+        try:
+            return int(serial_digits[:3])
+        except ValueError:
+            return None
+
+    def _is_chronos_legacy_unit(self) -> bool:
+        prefix = self._serial_prefix(self.detected_serial_number)
+        if prefix is None:
+            return False
+        return 191 <= prefix <= 195
+
+    def _pct_to_cap_position(self, pct: int) -> int:
+        """Convert percentage to the actual linear capacitor position index."""
+        max_coarse, max_fine = self._cap_grid_limits()
         min_pos = 0
-        max_pos = 7 * 64 - 1
+        max_pos = (max_coarse + 1) * (max_fine + 1) - 1
         return max(min_pos, min(max_pos, int(round((pct / 100.0) * max_pos))))
 
-    @staticmethod
-    def _cap_position_to_coarse_fine(position: int) -> tuple[int, int]:
-        """Map 0..447 position to coarse/fine code, where each coarse step is 64 counts."""
-        position = max(0, min(position, 7 * 64 - 1))
-        coarse, fine = divmod(position, 64)
-        return coarse, fine
+    def _cap_position_to_coarse_fine(self, position: int) -> tuple[int, int]:
+        """Map a linear position index to (coarse, fine) using product-specific ranges."""
+        max_coarse, max_fine = self._cap_grid_limits()
+        fine_span = max_fine + 1
+        max_pos = (max_coarse + 1) * fine_span - 1
+        position = max(0, min(position, max_pos))
+        coarse, fine = divmod(position, fine_span)
+        return min(coarse, max_coarse), min(fine, max_fine)
 
-    def _load_and_plot_contour(self):
+    def _load_and_plot_contour(self, show_after_load: bool = True):
         """Download contour data once, cache it, then plot from cache."""
         if self.smith_chart._contour_cache:
-            self.smith_chart.show_contour(True)
+            self.smith_chart.show_contour(show_after_load)
             self.append("Contour cache already loaded; plotting from cached data.")
             return
 
@@ -513,15 +619,18 @@ class MainWindow(QMainWindow):
             z_params_list = []
             contour_rows = []
 
-            # Sample at 2% increments in the actual 448-count capacitance space.
+            max_coarse, max_fine = self._cap_grid_limits()
+            max_position = (max_coarse + 1) * (max_fine + 1) - 1
+
+            # Sample at 2% increments in the product-specific capacitance space.
             percentages = list(range(0, 101, 2))
 
             self.append("Querying f1 band edge positions...")
 
             for line_name, fixed_c1, fixed_c2, reverse in [
                 ("Line 1", 0, None, False),
-                ("Line 2", None, 6 * 64 + 63, False),
-                ("Line 3", 6 * 64 + 63, None, True),
+                ("Line 2", None, max_position, False),
+                ("Line 3", max_position, None, True),
                 ("Line 4", None, 0, True),
             ]:
                 line_percentages = list(reversed(percentages)) if reverse else percentages
@@ -593,7 +702,7 @@ class MainWindow(QMainWindow):
                     if line_z_params:
                         self.smith_chart.plot_z_parameter_contour(line_z_params, clear=False)
                 self.smith_chart.set_contour_cache(contour_cache)
-                self.smith_chart.show_contour(True)
+                self.smith_chart.show_contour(show_after_load)
             else:
                 self.append("No Z-parameters loaded - contour plot failed")
                 self.smith_chart.contour_check.setChecked(False)
@@ -664,11 +773,12 @@ class MainWindow(QMainWindow):
         """
         import re
         
+        number = r"([+-]?\d+(?:\.\d+)?)"
         try:
-            z11_match = re.search(r'Z11\s*=\s*\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)', response)
-            z21_match = re.search(r'Z21\s*=\s*\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)', response)
-            z12_match = re.search(r'Z12\s*=\s*\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)', response)
-            z22_match = re.search(r'Z22\s*=\s*\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)', response)
+            z11_match = re.search(rf"Z11\s*=\s*\(\s*{number}\s*,\s*{number}\s*\)", response, re.IGNORECASE)
+            z21_match = re.search(rf"Z21\s*=\s*\(\s*{number}\s*,\s*{number}\s*\)", response, re.IGNORECASE)
+            z12_match = re.search(rf"Z12\s*=\s*\(\s*{number}\s*,\s*{number}\s*\)", response, re.IGNORECASE)
+            z22_match = re.search(rf"Z22\s*=\s*\(\s*{number}\s*,\s*{number}\s*\)", response, re.IGNORECASE)
             
             if all([z11_match, z21_match, z12_match, z22_match]):
                 return ZParameters(

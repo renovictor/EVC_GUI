@@ -2,22 +2,82 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PySide6.QtCore import QDateTime, Qt
+from PySide6.QtCore import QDateTime, Qt, Signal
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
     QCheckBox,
     QComboBox,
+    QDoubleSpinBox,
+    QFormLayout,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QVBoxLayout,
     QWidget,
 )
 from PySide6.QtCharts import QChart, QChartView, QDateTimeAxis, QLineSeries, QValueAxis
 
 from evc_gui.services.phase2 import EvcSample
+
+
+class AxisClickableChartView(QChartView):
+    y_axis_clicked = Signal(str)
+
+    def mousePressEvent(self, event):
+        plot = self.chart().plotArea()
+        x = event.position().x()
+        y = event.position().y()
+        if plot.top() <= y <= plot.bottom():
+            if plot.left() - 70 <= x <= plot.left() - 4:
+                self.y_axis_clicked.emit("left")
+            elif plot.right() + 4 <= x <= plot.right() + 90:
+                self.y_axis_clicked.emit("right")
+        super().mousePressEvent(event)
+
+
+class AxisScaleDialog(QDialog):
+    def __init__(self, parent: QWidget, axis_name: str, current_min: float, current_max: float):
+        super().__init__(parent)
+        self.setWindowTitle(f"Set {axis_name} Scale")
+        self.setStyleSheet(
+            """
+            QDialog { background: #ffffff; }
+            QLabel { color: #000000; }
+            QDoubleSpinBox { color: #000000; background: #ffffff; border: 1px solid #909090; }
+            """
+        )
+        self._min = QDoubleSpinBox()
+        self._max = QDoubleSpinBox()
+        self._step = QDoubleSpinBox()
+        for spin in (self._min, self._max, self._step):
+            spin.setDecimals(6)
+            spin.setRange(-1_000_000_000, 1_000_000_000)
+        self._min.setValue(current_min)
+        self._max.setValue(current_max)
+        default_step = (current_max - current_min) / 10.0 if current_max > current_min else 1.0
+        self._step.setValue(max(default_step, 0.000001))
+        self._step.setMinimum(0.000001)
+
+        form = QFormLayout(self)
+        hint = QLabel("Enter numeric values. Min Y must be less than Max Y. Step must be positive.")
+        hint.setWordWrap(True)
+        form.addRow(hint)
+        form.addRow("Min Y value", self._min)
+        form.addRow("Max Y value", self._max)
+        form.addRow("Step size", self._step)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        form.addRow(buttons)
+
+    def values(self) -> tuple[float, float, float]:
+        return self._min.value(), self._max.value(), self._step.value()
 
 
 class PowerScopeWidget(QWidget):
@@ -37,6 +97,7 @@ class PowerScopeWidget(QWidget):
         self._series: dict[str, QLineSeries] = {}
         self._checks: dict[str, QCheckBox] = {}
         self._value_edits: dict[str, QLineEdit] = {}
+        self._axis_scale_overrides: dict[str, tuple[float, float, float]] = {}
         self._axes_usage = {
             "power": {"pfwd", "pref", "pout"},
             "cap": {"c1", "c2"},
@@ -119,8 +180,9 @@ class PowerScopeWidget(QWidget):
             series.attachAxis(self._axis_for_key(key))
             self._series[key] = series
 
-        chart_view = QChartView(self.chart)
+        chart_view = AxisClickableChartView(self.chart)
         chart_view.setRenderHint(QPainter.Antialiasing)
+        chart_view.y_axis_clicked.connect(self._on_y_axis_clicked)
         root.addWidget(chart_view, 1)
         self._apply_axis_visibility()
 
@@ -171,11 +233,32 @@ class PowerScopeWidget(QWidget):
         end = _to_msec(samples[-1].timestamp)
         start = end - (self.selected_seconds() * 1000)
         self.axis_x.setRange(QDateTime.fromMSecsSinceEpoch(start), QDateTime.fromMSecsSinceEpoch(end))
-        self._set_auto_range(self.axis_power, _collect_group_values(key_values, self._axes_usage["power"]))
-        self.axis_cap.setRange(0, 100)
-        self._set_auto_range(self.axis_vpp, _collect_group_values(key_values, self._axes_usage["vpp"]))
-        self._set_auto_range(self.axis_dc, _collect_group_values(key_values, self._axes_usage["dc_bias"]))
-        self._set_auto_range(self.axis_iout, _collect_group_values(key_values, self._axes_usage["current"]))
+        self._apply_or_auto_scale(
+            self.axis_power,
+            "power",
+            _collect_group_values(key_values, self._axes_usage["power"]),
+        )
+        self._apply_or_auto_scale(
+            self.axis_cap,
+            "cap",
+            _collect_group_values(key_values, self._axes_usage["cap"]),
+            default_range=(0.0, 100.0),
+        )
+        self._apply_or_auto_scale(
+            self.axis_vpp,
+            "vpp",
+            _collect_group_values(key_values, self._axes_usage["vpp"]),
+        )
+        self._apply_or_auto_scale(
+            self.axis_dc,
+            "dc_bias",
+            _collect_group_values(key_values, self._axes_usage["dc_bias"]),
+        )
+        self._apply_or_auto_scale(
+            self.axis_iout,
+            "current",
+            _collect_group_values(key_values, self._axes_usage["current"]),
+        )
         self._apply_axis_visibility()
 
     def _apply_axis_visibility(self):
@@ -200,6 +283,69 @@ class PowerScopeWidget(QWidget):
         if key in self._axes_usage["current"]:
             return self.axis_iout
         return self.axis_power
+
+    def _axis_info(self, axis_key: str) -> tuple[QValueAxis, str]:
+        if axis_key == "cap":
+            return self.axis_cap, "Cap position"
+        if axis_key == "vpp":
+            return self.axis_vpp, "Vpp"
+        if axis_key == "dc_bias":
+            return self.axis_dc, "DcBias"
+        if axis_key == "current":
+            return self.axis_iout, "Iout"
+        return self.axis_power, "Power Level"
+
+    def _visible_axis_keys_for_side(self, side: str) -> list[str]:
+        if side == "left":
+            return ["power"] if self.axis_power.isVisible() else []
+        right_keys = []
+        for key in ("cap", "vpp", "dc_bias", "current"):
+            axis, _ = self._axis_info(key)
+            if axis.isVisible():
+                right_keys.append(key)
+        return right_keys
+
+    def _on_y_axis_clicked(self, side: str):
+        axis_keys = self._visible_axis_keys_for_side(side)
+        if not axis_keys:
+            return
+        axis_key = axis_keys[0]
+        if len(axis_keys) > 1:
+            labels = [self._axis_info(k)[1] for k in axis_keys]
+            selected, ok = QInputDialog.getItem(self, "Select Y Axis", "Axis", labels, 0, False)
+            if not ok:
+                return
+            axis_key = axis_keys[labels.index(selected)]
+        axis, axis_label = self._axis_info(axis_key)
+        dialog = AxisScaleDialog(self, axis_label, axis.min(), axis.max())
+        if dialog.exec() != QDialog.Accepted:
+            return
+        min_y, max_y, step = dialog.values()
+        if min_y >= max_y:
+            QMessageBox.warning(self, "Invalid Scale", "Min Y must be less than Max Y.")
+            return
+        self._axis_scale_overrides[axis_key] = (min_y, max_y, step)
+        axis.setRange(min_y, max_y)
+        axis.setTickInterval(step)
+
+    def _apply_or_auto_scale(
+        self,
+        axis: QValueAxis,
+        axis_key: str,
+        values: list[float],
+        default_range: tuple[float, float] | None = None,
+    ):
+        override = self._axis_scale_overrides.get(axis_key)
+        if override:
+            min_y, max_y, step = override
+            axis.setRange(min_y, max_y)
+            axis.setTickInterval(step)
+            return
+        axis.setTickInterval(0.0)
+        if default_range is not None:
+            axis.setRange(default_range[0], default_range[1])
+            return
+        self._set_auto_range(axis, values)
 
     @staticmethod
     def _set_auto_range(axis: QValueAxis, values: list[float]):

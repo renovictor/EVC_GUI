@@ -1,6 +1,6 @@
 """Single source of truth for EVC GUI version information."""
 APP_NAME = "EVC GUI"
-__version__ = "1.0.4"
+__version__ = "1.0.5"
 VERSION = tuple(int(part) for part in __version__.split("."))
 COMPANY = "ASM"
 DEPARTMENT = "PEALD RF Engineering"
@@ -8,6 +8,11 @@ AUTHOR = "Victor Huang"
 CONTACT = "victor.huang@asm.com"
 
 VERSION_HISTORY = [
+    {
+        "version": "1.0.5",
+        "date": "2026-09-28",
+        "summary": "Chronos-focused release: robust baud mismatch recovery with stricter ver handshake, Chronos 1/2.0 SN-based product detection and contour cap-range mapping, contour auto-download after scan, raw-only CSV logging, and Power Scope click-to-edit Y-axis scaling dialog.",
+    },
     {
         "version": "1.0.4",
         "date": "2026-09-27",

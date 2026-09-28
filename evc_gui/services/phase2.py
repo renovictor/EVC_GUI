@@ -8,7 +8,6 @@ import logging
 import queue
 import re
 import threading
-import uuid
 from collections import deque
 
 from PySide6.QtCore import QObject, QThread, Signal
@@ -82,20 +81,32 @@ def parse_pdat1_line(line: str) -> dict[str, float]:
 
 
 def parse_psum1_line(line: str) -> dict[str, float]:
-    if "|" not in line:
-        raise ValueError(f"Invalid psum1 payload: {line}")
-    left, right = line.split("|", 1)
-    left_tokens = left.split()
-    right_tokens = right.split()
-    if len(left_tokens) < 23 or len(right_tokens) < 2:
+    if "|" in line:
+        left, right = line.split("|", 1)
+        left_tokens = left.split()
+        right_tokens = right.split()
+        if len(left_tokens) < 23 or len(right_tokens) < 2:
+            raise ValueError(f"Incomplete psum1 payload: {line}")
+        return {
+            "rs": _to_float(left_tokens[4]),
+            "xs": _to_float(left_tokens[5]),
+            "vpp": _to_float(left_tokens[14]),
+            "iout": _to_float(left_tokens[19]),
+            "pout": _to_float(left_tokens[21]),
+            "dc_bias": _to_float(right_tokens[1]),
+        }
+
+    # Chronos format (no "|"): V I P Rs Xs Rl Xl C1c C1f C2c C2f C1% C2% Vpp Vcap DcBias Iout PhOut HVDC Temp Pout Eff%
+    tokens = line.split()
+    if len(tokens) < 21:
         raise ValueError(f"Incomplete psum1 payload: {line}")
     return {
-        "rs": _to_float(left_tokens[4]),
-        "xs": _to_float(left_tokens[5]),
-        "vpp": _to_float(left_tokens[14]),
-        "iout": _to_float(left_tokens[19]),
-        "pout": _to_float(left_tokens[21]),
-        "dc_bias": _to_float(right_tokens[1]),
+        "rs": _to_float(tokens[3]),
+        "xs": _to_float(tokens[4]),
+        "vpp": _to_float(tokens[13]),
+        "dc_bias": _to_float(tokens[15]),
+        "iout": _to_float(tokens[16]),
+        "pout": _to_float(tokens[20]),
     }
 
 
@@ -111,7 +122,7 @@ def parse_pdat1_raw_columns(line: str) -> dict[str, str]:
         fx_tokens = left.split()
         if fx_tokens:
             fx = fx_tokens[-1]
-    else:
+    elif re.match(r"^\s*F\d+\b", line):
         parts = line.split(maxsplit=1)
         if parts:
             fx = parts[0]
@@ -125,13 +136,40 @@ def parse_pdat1_raw_columns(line: str) -> dict[str, str]:
 def parse_psum1_raw_columns(line: str) -> dict[str, str]:
     if "|" in line:
         left, right = line.split("|", 1)
-    else:
-        left, right = line, ""
-    left_tokens = left.split()
-    right_tokens = right.split()
-    if len(left_tokens) < len(PSUM1_LEFT_RAW_HEADERS) or len(right_tokens) < len(PSUM1_RIGHT_RAW_HEADERS):
+        left_tokens = left.split()
+        right_tokens = right.split()
+        if len(left_tokens) < len(PSUM1_LEFT_RAW_HEADERS) or len(right_tokens) < len(PSUM1_RIGHT_RAW_HEADERS):
+            log.warning("Incomplete psum1 raw payload: %s", line)
+        return _map_raw_tokens(PSUM1_LEFT_RAW_HEADERS, left_tokens) | _map_raw_tokens(PSUM1_RIGHT_RAW_HEADERS, right_tokens)
+
+    # Chronos format (no "|"): keep shared fields in left columns and map HVDC/DcBias/Temp into right columns.
+    tokens = line.split()
+    row = {header: "" for header in (*PSUM1_LEFT_RAW_HEADERS, *PSUM1_RIGHT_RAW_HEADERS)}
+    if len(tokens) < 21:
         log.warning("Incomplete psum1 raw payload: %s", line)
-    return _map_raw_tokens(PSUM1_LEFT_RAW_HEADERS, left_tokens) | _map_raw_tokens(PSUM1_RIGHT_RAW_HEADERS, right_tokens)
+    row["V_Tune"] = tokens[0] if len(tokens) > 0 else ""
+    row["V_NG"] = tokens[1] if len(tokens) > 1 else ""
+    row["I_Tune"] = tokens[2] if len(tokens) > 2 else ""
+    row["Rs"] = tokens[3] if len(tokens) > 3 else ""
+    row["Xs"] = tokens[4] if len(tokens) > 4 else ""
+    row["Rl"] = tokens[5] if len(tokens) > 5 else ""
+    row["Xl"] = tokens[6] if len(tokens) > 6 else ""
+    row["C1c"] = tokens[7] if len(tokens) > 7 else ""
+    row["C1f"] = tokens[8] if len(tokens) > 8 else ""
+    row["C2c"] = tokens[9] if len(tokens) > 9 else ""
+    row["C2f"] = tokens[10] if len(tokens) > 10 else ""
+    row["C1%"] = tokens[11] if len(tokens) > 11 else ""
+    row["C2%"] = tokens[12] if len(tokens) > 12 else ""
+    row["Vpp_Tune"] = tokens[13] if len(tokens) > 13 else ""
+    row["Vcap"] = tokens[14] if len(tokens) > 14 else ""
+    row["DcBias"] = tokens[15] if len(tokens) > 15 else ""
+    row["Iout"] = tokens[16] if len(tokens) > 16 else ""
+    row["PhOut"] = tokens[17] if len(tokens) > 17 else ""
+    row["HVDC"] = tokens[18] if len(tokens) > 18 else ""
+    row["Amb.Temp"] = tokens[19] if len(tokens) > 19 else ""
+    row["Pout"] = tokens[20] if len(tokens) > 20 else ""
+    row["Eff%"] = tokens[21] if len(tokens) > 21 else ""
+    return row
 
 
 class SerialWorker(QThread):
@@ -320,17 +358,12 @@ class DataController(QObject):
     ):
         super().__init__()
         self._samples: deque[EvcSample] = deque(maxlen=max_samples)
-        self._session_id = uuid.uuid4().hex
         self._logs_dir = logs_dir
         self._safe_serial = re.sub(r"[^0-9A-Za-z_-]", "", serial_number) or "unknown"
         self._raw_writer: CsvWriter | None = None
-        self._parsed_writer: CsvWriter | None = None
         self._active_log_started_at: datetime | None = None
         self._meta = {
-            "product": product or "Unknown",
-            "serial_number": serial_number or "",
             "firmware": firmware or "",
-            "session_id": self._session_id,
         }
         self._open_writers(datetime.now())
 
@@ -339,7 +372,6 @@ class DataController(QObject):
         time_code = started_at.strftime("%H%M")
         base_name = f"{self._safe_serial}Tykon_GUI_{date_code}_{time_code}"
         raw_base = f"{base_name}_raw.csv"
-        parsed_base = f"{base_name}_parsed.csv"
         self._raw_writer = CsvWriter(
             tmp_path=self._logs_dir / f"{raw_base}.tmp",
             final_path=self._logs_dir / raw_base,
@@ -351,29 +383,7 @@ class DataController(QObject):
                 *PSUM1_RIGHT_RAW_HEADERS,
             ],
         )
-        self._parsed_writer = CsvWriter(
-            tmp_path=self._logs_dir / f"{parsed_base}.tmp",
-            final_path=self._logs_dir / parsed_base,
-            headers=[
-                "timestamp",
-                "product",
-                "serial_number",
-                "firmware",
-                "session_id",
-                "pfwd",
-                "pref",
-                "c1",
-                "c2",
-                "vpp",
-                "dc_bias",
-                "pout",
-                "iout",
-                "rs",
-                "xs",
-            ],
-        )
         self._raw_writer.start()
-        self._parsed_writer.start()
         self._active_log_started_at = started_at
 
     def _rotate_writers_if_needed(self, current_time: datetime):
@@ -384,8 +394,6 @@ class DataController(QObject):
             return
         if self._raw_writer is not None:
             self._raw_writer.close()
-        if self._parsed_writer is not None:
-            self._parsed_writer.close()
         self._open_writers(current_time)
 
     def append_sample(self, sample: EvcSample, raw_pdat1: str, raw_psum1: str):
@@ -400,26 +408,6 @@ class DataController(QObject):
         raw_row.update(parse_psum1_raw_columns(raw_psum1))
         if self._raw_writer is not None:
             self._raw_writer.enqueue(raw_row)
-        if self._parsed_writer is not None:
-            self._parsed_writer.enqueue(
-                {
-                    "timestamp": stamp,
-                    "product": self._meta["product"],
-                    "serial_number": self._meta["serial_number"],
-                    "firmware": self._meta["firmware"],
-                    "session_id": self._meta["session_id"],
-                    "pfwd": sample.pfwd,
-                    "pref": sample.pref,
-                    "c1": sample.c1,
-                    "c2": sample.c2,
-                    "vpp": sample.vpp,
-                    "dc_bias": sample.dc_bias,
-                    "pout": sample.pout,
-                    "iout": sample.iout,
-                    "rs": sample.rs if sample.rs is not None else "",
-                    "xs": sample.xs if sample.xs is not None else "",
-                }
-            )
         self.sample_added.emit(sample)
 
     def window(self, seconds: int) -> list[EvcSample]:
@@ -435,5 +423,3 @@ class DataController(QObject):
     def close(self):
         if self._raw_writer is not None:
             self._raw_writer.close()
-        if self._parsed_writer is not None:
-            self._parsed_writer.close()

@@ -1,4 +1,4 @@
-# EVC GUI v1.0.4
+# EVC GUI v1.0.5
 
 ## Purpose
 A maintainable PySide6 foundation for validating EVC communication and progressively replacing/augmenting the original LabVIEW GUI. Supported product selections are Quantum, Tykon, Triton, and Chronos.
@@ -29,13 +29,12 @@ At startup, a borderless 5-second splash screen immediately appears. The loader 
 ## Operation
 1. Click **Refresh Ports**.
 2. Choose the COM port and baud rate (default is **57600**).
-3. Click **Start / Connect**. The app auto-checks communication on **57600** and **230400** (via `ver`) and keeps the working baud.
+3. Click **Start / Connect**. The app validates `ver` echo/content and automatically scans baud rates (prioritizing selected baud, 57600, 230400) until it finds a valid communication path.
 4. Click **Run**. During `SCAN_EQUIPMENT`, the GUI sends `ver`, `sn`, issues `baud 7` to set **230400**, reconnects at **230400**, validates with `ver`, then enters continuous `pdat1` + `psum1` polling.
 5. Open **Power Scope** to select traces, choose the latest **10 sec** or **60 sec** time window, and view current values.
 6. If no real EVC data is available, enable **Demo Mode (Phase 2/3)** before Run to generate synthetic `pdat1`/`psum1` values and Smith Chart impedance demo patterns (VSWR=5 circle, spiral, linear, random).
-7. During run, parsed/raw Phase 2 CSV files are written in `logs/` and rotated every 3 hours:
+7. During run, raw Phase 2 CSV files are written in `logs/` and rotated every 3 hours:
    - `<UnitSN>Tykon_GUI_<YYYYMMDD>_<HHMM>_raw.csv`
-   - `<UnitSN>Tykon_GUI_<YYYYMMDD>_<HHMM>_parsed.csv`
    - CSV `timestamp` values are written as `YYYY-MM-DD HH:MM:SS.mmm` (Excel-friendly with milliseconds)
 8. Click **Probe** only when idle to send CR/LF for command-path verification.
 9. Check `logs/` and `logs/python_fault.log` for troubleshooting.
@@ -46,9 +45,9 @@ Use `ASM-logo-small.gif` for splash branding and `smithchart.ico` for title bar/
 ## Build a single EXE
 With the virtual environment active and approved assets present:
 
-`pyinstaller --noconfirm --clean --onefile --windowed --name "EVC_GUI_v1.0.4" --icon "smithchart.ico" --add-data "ASM-logo-small.gif;." main.py`
+`pyinstaller --noconfirm --clean --onefile --windowed --name "EVC_GUI_v1.0.5" --icon "smithchart.ico" --add-data "ASM-logo-small.gif;." main.py`
 
-The output will be `dist\EVC_GUI_v1.0.4.exe`. PyInstaller one-file extraction means external writable logs are created beside the EXE when permissions allow. For controlled production deployment, use a writable deployment folder.
+The output will be `dist\EVC_GUI_v1.0.5.exe`. PyInstaller one-file extraction means external writable logs are created beside the EXE when permissions allow. For controlled production deployment, use a writable deployment folder.
 
 ## Project layout
 - `version.py`: version and history source of truth
@@ -56,7 +55,7 @@ The output will be `dist\EVC_GUI_v1.0.4.exe`. PyInstaller one-file extraction me
 - `evc_gui/services/serial_service.py`: hardware boundary
 - `evc_gui/ui/`: splash and main window
 - `evc_gui/logging_config.py`: rotating logs and fault capture
-- `RELEASE_CHECKLIST_v1.0.4.md`: repeatable release procedure
+- `RELEASE_CHECKLIST_v1.0.5.md`: repeatable release procedure
 
 ## Notes
 The original PDFs are design references, not runtime dependencies. Device-specific commands, response parsing, tlog timing, and product-specific protocol adapters should be added behind the service boundary instead of directly inside Qt widgets.
