@@ -739,11 +739,6 @@ class MainWindow(QMainWindow):
                         cmd = f"zpar show {band} {c1_coarse} {c1_fine} {c2_coarse} {c2_fine}"
                         z_params = self._query_and_parse_zpar(cmd)
                         
-                        # Update progress bar
-                        current_query += 1
-                        self.progress.setValue(current_query)
-                        QApplication.processEvents()
-                        
                         if not z_params:
                             continue
 
@@ -780,6 +775,13 @@ class MainWindow(QMainWindow):
                                 "gamma_phase_deg": math.degrees(cmath.phase(gamma)),
                             }
                         )
+                        
+                        # Update progress bar every 10 queries to avoid blocking serial communication
+                        current_query += 1
+                        if current_query % 10 == 0:
+                            self.progress.setValue(current_query)
+                            QApplication.processEvents()
+                        
                         if line_name == "Line 3":
                             self.append(
                                 f"{band.upper()} {line_name} pct={pct:>3}% -> C1=({c1_coarse},{c1_fine}), C2=({c2_coarse},{c2_fine}) | "
