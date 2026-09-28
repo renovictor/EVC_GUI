@@ -1,6 +1,6 @@
 """Single source of truth for EVC GUI version information."""
 APP_NAME = "EVC GUI"
-__version__ = "26.0.0"
+__version__ = "26.0.1"
 VERSION = tuple(int(part) for part in __version__.split("."))
 COMPANY = "ASM"
 DEPARTMENT = "PEALD RF Engineering"
@@ -8,6 +8,11 @@ AUTHOR = "Victor Huang"
 CONTACT = "victor.huang@asm.com"
 
 VERSION_HISTORY = [
+    {
+        "version": "26.0.1",
+        "date": "2026-09-28",
+        "summary": "UI polish and progress visibility: bright red 40px progress bar with thick styling, visible during contour download, progress updates every 10 queries to avoid serial blocking, larger progress indicator symbol.",
+    },
     {
         "version": "26.0.0",
         "date": "2026-09-28",
