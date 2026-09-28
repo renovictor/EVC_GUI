@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [26.0.2] - 2026-09-28
+
+### Added
+- New **Troubleshoot** tab with a **Diagnostic** button and read-only result display box.
+- Diagnostic flow that runs `stat`, detects `Active Faults`, and lists fault code + explanation for users.
+
+### Changed
+- Renamed the previous `Future` tab to `Troubleshoot`.
+
+### Fixed
+- Fault parsing now extracts active fault entries from `stat` output reliably until section end/prompt.
+- Fault code presentation includes mapped descriptions for current Tykon cases (`25`, `43`).
+
 ## [26.0.1] - 2026-09-28
 
 ### Added

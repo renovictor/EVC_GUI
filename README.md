@@ -1,4 +1,4 @@
-# EVC GUI v26.0.0
+# EVC GUI v26.0.2
 
 ## Purpose
 A maintainable PySide6 foundation for validating EVC communication and progressively replacing/augmenting the original LabVIEW GUI. Supported product selections are Quantum, Tykon, Triton, and Chronos.
@@ -62,9 +62,9 @@ Use `ASM-logo-small.gif` for splash branding and `smithchart.ico` for title bar/
 ## Build a single EXE
 With the virtual environment active and approved assets present:
 
-`pyinstaller --noconfirm --clean --onefile --windowed --name "EVC_GUI_v26.0.0" --icon "smithchart.ico" --add-data "ASM-logo-small.gif;." main.py`
+`pyinstaller --noconfirm --clean --onefile --windowed --name "EVC_GUI_v26.0.2" --icon "smithchart.ico" --add-data "ASM-logo-small.gif;." main.py`
 
-The output will be `dist\EVC_GUI_v26.0.0.exe`. PyInstaller one-file extraction means external writable logs are created beside the EXE when permissions allow. For controlled production deployment, use a writable deployment folder.
+The output will be `dist\EVC_GUI_v26.0.2.exe`. PyInstaller one-file extraction means external writable logs are created beside the EXE when permissions allow. For controlled production deployment, use a writable deployment folder.
 
 ## Project layout
 - `version.py`: version and history source of truth
@@ -75,7 +75,7 @@ The output will be `dist\EVC_GUI_v26.0.0.exe`. PyInstaller one-file extraction m
 - `evc_gui/ui/device_selection_dialog.py`: device selection UI
 - `evc_gui/ui/`: splash and chart widgets
 - `evc_gui/logging_config.py`: rotating logs and fault capture
-- `RELEASE_CHECKLIST_v26.0.0.md`: repeatable release procedure
+- `RELEASE_CHECKLIST_v26.0.2.md`: repeatable release procedure
 - `AUTO_DETECTION_FEATURE.md`: detailed auto-detection documentation
 
 ## Notes

@@ -51,6 +51,10 @@ SCAN_COMMAND_TIMEOUT_S = 0.5
 POST_SWITCH_SETTLE_S = 0.35
 VER_RETRY_COUNT = 3
 SCAN_VER_RETRY_COUNT = 3
+TYKON_FAULT_EXPLANATIONS = {
+    "25": "Power Supplies Not On",
+    "43": "DC Fault (DC PS Setup/Comm)",
+}
 
 
 # Signal emitter for thread-safe scanning completion
@@ -176,19 +180,22 @@ class MainWindow(QMainWindow):
         tabs.addTab(self.power_scope, "Power Scope")
         self.smith_chart = SmithChartWidget()
         tabs.addTab(self.smith_chart, "Smith Chart")
-        for name, note in [("Future", "Phase 4 extension area")]:
-            page = QWidget()
-            lay = QVBoxLayout(page)
-            label = QLabel(note)
-            label.setAlignment(Qt.AlignCenter)
-            lay.addWidget(label)
-            tabs.addTab(page, name)
+        troubleshoot_page = QWidget()
+        troubleshoot_layout = QVBoxLayout(troubleshoot_page)
+        self.diagnostic_btn = QPushButton("Diagnostic")
+        self.diagnostic_output = QPlainTextEdit()
+        self.diagnostic_output.setReadOnly(True)
+        self.diagnostic_output.setPlaceholderText("Diagnostic results will appear here.")
+        troubleshoot_layout.addWidget(self.diagnostic_btn)
+        troubleshoot_layout.addWidget(self.diagnostic_output, 1)
+        tabs.addTab(troubleshoot_page, "Troubleshoot")
 
         self.refresh_btn.clicked.connect(self.refresh_ports)
         self.start_btn.clicked.connect(self.start_connection)
         self.demo_mode_check.toggled.connect(self._on_demo_mode_toggled)
         self.smith_chart.contour_check.toggled.connect(self._on_contour_toggled)
         self.probe_btn.clicked.connect(self.probe)
+        self.diagnostic_btn.clicked.connect(self.run_diagnostic)
         self.run_btn.clicked.connect(self.run_monitoring)
         self.abort_btn.clicked.connect(self.abort)
         self.exit_btn.clicked.connect(self.close)
@@ -324,6 +331,54 @@ class MainWindow(QMainWindow):
 
     def probe(self):
         self.append(self.serial.probe().message)
+
+    def run_diagnostic(self):
+        if not self.serial.connected:
+            message = "Diagnostic unavailable: connect to an EVC first."
+            self.diagnostic_output.setPlainText(message)
+            self.append(message)
+            return
+        result = self.serial.send_command("stat", timeout=2.0)
+        if not result.ok:
+            self.diagnostic_output.setPlainText(f"Diagnostic command failed.\n{result.message}")
+            self.append(f"Diagnostic failed: {result.message}")
+            return
+        faults = self._extract_active_faults(result.response)
+        if not faults:
+            self.diagnostic_output.setPlainText("No active faults or alarms detected.")
+            self.append("Diagnostic complete: no active faults found")
+            return
+        lines = ["Active faults detected:"]
+        for code, description in faults:
+            fault_description = TYKON_FAULT_EXPLANATIONS.get(code, description)
+            lines.append(f"{code} -- {fault_description}")
+        self.diagnostic_output.setPlainText("\n".join(lines))
+        self.append("Diagnostic complete: active faults detected")
+
+    @staticmethod
+    def _extract_active_faults(response: str) -> list[tuple[str, str]]:
+        faults: list[tuple[str, str]] = []
+        in_active_faults = False
+        for raw_line in response.splitlines():
+            line = raw_line.strip()
+            if not in_active_faults:
+                if line.lower().startswith("active faults"):
+                    in_active_faults = True
+                continue
+            if not line:
+                if faults:
+                    break
+                continue
+            if line.lower() == "none":
+                break
+            if line.endswith(">") and " " not in line:
+                break
+            match = re.match(r"^(\d+)\s*--\s*(.+)$", line)
+            if match:
+                faults.append((match.group(1), match.group(2).strip()))
+            elif faults:
+                break
+        return faults
 
     def run_monitoring(self):
         demo_mode = self.demo_mode_check.isChecked()

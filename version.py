@@ -1,6 +1,6 @@
 """Single source of truth for EVC GUI version information."""
 APP_NAME = "EVC GUI"
-__version__ = "26.0.1"
+__version__ = "26.0.2"
 VERSION = tuple(int(part) for part in __version__.split("."))
 COMPANY = "ASM"
 DEPARTMENT = "PEALD RF Engineering"
@@ -8,6 +8,11 @@ AUTHOR = "Victor Huang"
 CONTACT = "victor.huang@asm.com"
 
 VERSION_HISTORY = [
+    {
+        "version": "26.0.2",
+        "date": "2026-09-28",
+        "summary": "Troubleshooting release: renamed Future tab to Troubleshoot, added Diagnostic button, and implemented stat active-fault parsing with fault-code display (including Tykon 25/43 mapping).",
+    },
     {
         "version": "26.0.1",
         "date": "2026-09-28",
