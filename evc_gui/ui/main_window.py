@@ -143,6 +143,19 @@ class MainWindow(QMainWindow):
         form.addWidget(self.state_label, 11, 1)
         self.progress = QProgressBar()
         self.progress.setMinimumHeight(40)  # Make progress indicator noticeably larger
+        # Style progress bar: red chunk and thicker appearance
+        self.progress.setStyleSheet("""
+            QProgressBar {
+                border: 2px solid #333;
+                border-radius: 5px;
+                background-color: #222;
+                height: 35px;
+            }
+            QProgressBar::chunk {
+                background-color: #FF0000;
+                border-radius: 3px;
+            }
+        """)
         form.addWidget(self.progress, 12, 0, 1, 2)
         form.setRowStretch(13, 1)
         body.addWidget(control, 0)
