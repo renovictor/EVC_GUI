@@ -46,8 +46,12 @@ from evc_gui.ui.device_selection_dialog import DeviceSelectionDialog
 from version import APP_NAME, COMPANY, __version__
 
 log = logging.getLogger(__name__)
-START_BAUD_CANDIDATES = (57600, 230400)
+LOW_SPEED_BAUD = 57600
 HIGH_SPEED_BAUD = 230400
+LOW_SPEED_BAUD_COMMAND = "baud 5"
+LOW_SPEED_BAUD_COMMAND_FALLBACK = "baud 6"
+HIGH_SPEED_BAUD_COMMAND = "baud 7"
+START_BAUD_CANDIDATES = (LOW_SPEED_BAUD, HIGH_SPEED_BAUD)
 RUN_COMMAND_TIMEOUT_S = 0.075
 HANDSHAKE_TIMEOUT_S = 1.0
 SCAN_COMMAND_TIMEOUT_S = 0.5
@@ -57,6 +61,8 @@ SCAN_VER_RETRY_COUNT = 3
 ZPAR_COMMAND_TIMEOUT_S = 0.5
 ZPAR_READ_TIMEOUT_S = 0.01
 ZPAR_PAYLOAD_QUIET_S = 0.03
+TLOG_TIMEOUT_S = 300.0
+TLOG_MAX_PARTS = 6
 TYKON_FAULT_EXPLANATIONS = {
     "25": "Power Supplies Not On",
     "43": "DC Fault (DC PS Setup/Comm)",
@@ -76,6 +82,8 @@ class DiagnosticCommand:
     timeout: float
     end_markers: tuple[str, ...] = ()
     line_ending: str = "\r\n"
+    continue_on_incomplete: bool = False
+    max_parts: int = 1
 
 
 @dataclass(frozen=True)
@@ -115,25 +123,53 @@ class DiagnosticJobWorker(QThread):
                 if self._cancelled.is_set():
                     self.job_finished.emit(DiagnosticJobResult(False, "Diagnostic download cancelled", results))
                     return
-                self.progress.emit(f"Sending {step.command}...")
-                result = self._serial.send_command(
-                    step.command,
-                    timeout=step.timeout,
-                    cancel_event=self._cancelled,
-                    end_markers=step.end_markers,
-                    line_callback=self.line_received.emit,
-                    line_ending=step.line_ending,
-                )
+                max_parts = max(1, step.max_parts)
+                part_index = 1
+                combined_chunks: list[str] = []
+                result = None
+                while True:
+                    part_label = f" (part {part_index}/{max_parts})" if max_parts > 1 else ""
+                    self.progress.emit(f"Sending {step.command}{part_label}...")
+                    result = self._serial.send_command(
+                        step.command,
+                        timeout=step.timeout,
+                        cancel_event=self._cancelled,
+                        end_markers=step.end_markers,
+                        line_callback=self.line_received.emit,
+                        line_ending=step.line_ending,
+                    )
+                    if result.response:
+                        combined_chunks.append(result.response)
+                    if self._cancelled.is_set():
+                        self.job_finished.emit(DiagnosticJobResult(False, "Diagnostic download cancelled", results))
+                        return
+                    incomplete = (
+                        (not result.ok)
+                        and ("ended before end marker" in result.message.lower())
+                        and bool(result.response.strip())
+                    )
+                    if step.continue_on_incomplete and incomplete and part_index < max_parts:
+                        self.progress.emit(
+                            f"{step.command} part {part_index} incomplete; collecting next part..."
+                        )
+                        part_index += 1
+                        continue
+                    break
+                assert result is not None
+                combined_response = "\n".join(chunk for chunk in combined_chunks if chunk).strip()
+                result_message = result.message
+                if part_index > 1:
+                    result_message = f"{result.message} after {part_index} part(s)"
                 step_result = DiagnosticCommandResult(
                     key=step.key,
                     command=step.command,
                     ok=result.ok,
-                    message=result.message,
-                    response=result.response,
+                    message=result_message,
+                    response=combined_response,
                 )
                 results[step.key] = step_result
                 if not result.ok:
-                    message = "Diagnostic download cancelled" if self._cancelled.is_set() else result.message
+                    message = "Diagnostic download cancelled" if self._cancelled.is_set() else result_message
                     self.job_finished.emit(DiagnosticJobResult(False, message, results))
                     return
             self.job_finished.emit(DiagnosticJobResult(True, "Diagnostic download complete", results))
@@ -153,7 +189,7 @@ class MainWindow(QMainWindow):
         self.detected_product = "Unknown"
         self.detected_serial_number = ""
         self.detected_firmware = ""
-        self._active_baud = 57600
+        self._active_baud = LOW_SPEED_BAUD
         self._device_log_ready = False
         self._worker: SerialWorker | None = None
         self._diagnostic_worker: DiagnosticJobWorker | None = None
@@ -196,7 +232,7 @@ class MainWindow(QMainWindow):
         self.port = QComboBox()
         self.baud = QComboBox()
         self.baud.addItems(["9600", "19200", "38400", "57600", "115200", "230400"])
-        self.baud.setCurrentText("57600")
+        self.baud.setCurrentText(str(LOW_SPEED_BAUD))
         self.serial_number_value = QLabel("-")
         self.refresh_btn = QPushButton("Refresh Ports")
         self.start_btn = QPushButton("Start / Connect")
@@ -355,9 +391,19 @@ class MainWindow(QMainWindow):
     def _update_usb_state_label(self):
         if self.serial.connected:
             port = self.port.currentText().strip() or "Unknown"
-            self.usb_state_label.setText(f"Connected ({port})")
+            self.usb_state_label.setText(f"Connected ({port} @ {self._active_baud})")
         else:
             self.usb_state_label.setText("Disconnected")
+
+    def _connected_baudrate(self) -> int | None:
+        serial_handle = getattr(self.serial, "_serial", None)
+        if not serial_handle:
+            return None
+        try:
+            baud = int(serial_handle.baudrate)
+        except (TypeError, ValueError, AttributeError):
+            return None
+        return baud
 
     def refresh_ports(self):
         current = self.port.currentText()
@@ -438,6 +484,8 @@ class MainWindow(QMainWindow):
         # Connect to the selected port and baud rate
         result = self.serial.connect(device.port, device.baudrate)
         self.append(result.message)
+        if result.ok:
+            self._active_baud = device.baudrate
         self._update_usb_state_label()
         if not result.ok:
             self.machine.transition(AppState.ERROR, f"Connection failed: {result.message}")
@@ -446,6 +494,15 @@ class MainWindow(QMainWindow):
             return
         
         # Validate identity
+        if not self._switch_to_low_speed(fail_on_error=False):
+            self.append("Failed to normalize to 57600 baud before identity validation")
+            self.serial.disconnect()
+            self._update_usb_state_label()
+            self.machine.transition(AppState.ERROR, "Failed to switch to 57600 baud")
+            self.start_btn.setEnabled(True)
+            self._update_controls_for_idle()
+            return
+
         if not self._query_scan_identity(setup_device_log=False, fail_on_error=False):
             self.append("Identity validation failed")
             self.serial.disconnect()
@@ -454,11 +511,18 @@ class MainWindow(QMainWindow):
             self.start_btn.setEnabled(True)
             self._update_controls_for_idle()
             return
+
+        if not self._switch_to_high_speed():
+            self.append("Failed to switch to 230400 baud after identity validation")
+            self.serial.disconnect()
+            self._update_usb_state_label()
+            self.start_btn.setEnabled(True)
+            self._update_controls_for_idle()
+            return
         
-        self.append(f"Handshake OK at {device.baudrate} baud")
-        self._active_baud = device.baudrate
+        self.append(f"Handshake OK at {self._active_baud} baud")
         self.port.setCurrentText(device.port)
-        self.baud.setCurrentText(str(device.baudrate))
+        self.baud.setCurrentText(str(self._active_baud))
         
         # Update UI
         self.machine.transition(AppState.GETTING_START, "Communication path validated")
@@ -595,21 +659,21 @@ class MainWindow(QMainWindow):
             self.append("Backup failed: no response")
             return
         self.diagnostic_status.setPlainText(backup_result.response)
-        if not backup_result.ok:
-            output = self._append_result(f"{timestamp} Backup: Command failed - {backup_result.message}")
-            self.diagnostic_output.setPlainText(output)
-            self.append(f"Backup failed: {backup_result.message}")
-            return
         if self._is_invalid_command_response(backup_result.response):
             output = self._append_result(f"{timestamp} Backup: Unsupported on this EVC (Invalid Command).")
             self.diagnostic_output.setPlainText(output)
             self.append("Backup unavailable: EVC responded 'Invalid Command'")
             return
-        sn = self.detected_serial_number or "UNKNOWN"
+        if not backup_result.ok:
+            output = self._append_result(f"{timestamp} Backup: Command failed - {backup_result.message}")
+            self.diagnostic_output.setPlainText(output)
+            self.append(f"Backup failed: {backup_result.message}")
+            return
+        prefix = self._diagnostic_file_prefix()
         now = datetime.now()
         datecode = now.strftime("%Y%m%d")
         timecode = now.strftime("%H%M")
-        filename = f"{sn}Tykon_GUI_{datecode}_{timecode}_back.txt"
+        filename = f"{prefix}_{datecode}_{timecode}_back.txt"
         log_dir = self.log_file.parent if self.log_file else Path.cwd()
         log_dir.mkdir(parents=True, exist_ok=True)
         backup_path = log_dir / filename
@@ -630,30 +694,46 @@ class MainWindow(QMainWindow):
             self.diagnostic_output.setPlainText(output)
             self.append("Time log failed: no response")
             return
-        self.diagnostic_status.setPlainText(tlog_result.response)
-        if not tlog_result.ok:
-            output = self._append_result(f"{timestamp} tlog: Command failed - {tlog_result.message}")
-            self.diagnostic_output.setPlainText(output)
-            self.append(f"Time log failed: {tlog_result.message}")
-            return
-        if "The log is empty" in tlog_result.response:
+        response_text = tlog_result.response or ""
+        self.diagnostic_status.setPlainText(response_text)
+        if "The log is empty" in response_text:
             output = self._append_result(f"{timestamp} tlog: Empty (no data in buffer)")
             self.diagnostic_output.setPlainText(output)
             self.append("Time log download complete: log is empty")
             return
-        sn = self.detected_serial_number or "UNKNOWN"
+        incomplete_timeout = (
+            (not tlog_result.ok)
+            and "ended before end marker" in tlog_result.message.lower()
+            and bool(response_text.strip())
+        )
+        if (not tlog_result.ok) and (not incomplete_timeout):
+            output = self._append_result(f"{timestamp} tlog: Command failed - {tlog_result.message}")
+            self.diagnostic_output.setPlainText(output)
+            self.append(f"Time log failed: {tlog_result.message}")
+            return
+        prefix = self._diagnostic_file_prefix()
         now = datetime.now()
         datecode = now.strftime("%Y%m%d")
         timecode = now.strftime("%H%M")
-        filename = f"{sn}Tykon_GUI_{datecode}_{timecode}_tlog.txt"
+        filename = (
+            f"{prefix}_{datecode}_{timecode}_tlog_partial.txt"
+            if incomplete_timeout
+            else f"{prefix}_{datecode}_{timecode}_tlog.txt"
+        )
         log_dir = self.log_file.parent if self.log_file else Path.cwd()
         log_dir.mkdir(parents=True, exist_ok=True)
         tlog_path = log_dir / filename
         try:
-            tlog_path.write_text(tlog_result.response, encoding="utf-8")
-            output = self._append_result(f"{timestamp} tlog: Downloaded successfully.\nSaved to: {tlog_path}")
+            tlog_path.write_text(response_text, encoding="utf-8")
+            if incomplete_timeout:
+                output = self._append_result(
+                    f"{timestamp} tlog: Timed out before footer; partial log saved.\nSaved to: {tlog_path}"
+                )
+                self.append(f"Time log partial: saved to {tlog_path}")
+            else:
+                output = self._append_result(f"{timestamp} tlog: Downloaded successfully.\nSaved to: {tlog_path}")
+                self.append(f"Time log complete: saved to {tlog_path}")
             self.diagnostic_output.setPlainText(output)
-            self.append(f"Time log complete: saved to {tlog_path}")
         except Exception as e:
             output = self._append_result(f"{timestamp} tlog: Failed to save - {e}")
             self.diagnostic_output.setPlainText(output)
@@ -684,17 +764,17 @@ class MainWindow(QMainWindow):
             self.append("Advanced diagnostic: backup download failed")
             return
         self.diagnostic_status.setPlainText(backup_result.response)
-        if not backup_result.ok:
-            output = self._append_result(f"{timestamp} Adv. Diag.: Failed to download backup - {backup_result.message}")
-            self.diagnostic_output.setPlainText(output)
-            self.append("Advanced diagnostic: backup download failed")
-            return
         if self._is_invalid_command_response(backup_result.response):
             output = self._append_result(
                 f"{timestamp} Adv. Diag.: Backup unsupported on this EVC (Invalid Command)."
             )
             self.diagnostic_output.setPlainText(output)
             self.append("Advanced diagnostic: backup unavailable (Invalid Command)")
+            return
+        if not backup_result.ok:
+            output = self._append_result(f"{timestamp} Adv. Diag.: Failed to download backup - {backup_result.message}")
+            self.diagnostic_output.setPlainText(output)
+            self.append("Advanced diagnostic: backup download failed")
             return
         accu_info = self._extract_accumulator_info(backup_result.response)
         result_lines = [f"{timestamp} Adv. Diag.:"] + diag_output
@@ -767,12 +847,22 @@ class MainWindow(QMainWindow):
             self.append(message)
             return
         is_chronos1 = self._is_chronos_family() and self._is_chronos_legacy_unit()
-        timeout_seconds = 120.0 if is_chronos1 else 120.0
+        timeout_seconds = TLOG_TIMEOUT_S
         device_note = "Chronos 1" if is_chronos1 else "other devices"
         self._start_diagnostic_job(
             "tlog",
-            [DiagnosticCommand("tlog", "tlog", timeout_seconds, ("Printed from : EVC",), "\r")],
-            f"Starting time log download ({device_note}, waiting for 'Printed from : EVC')...",
+            [
+                DiagnosticCommand(
+                    "tlog",
+                    "tlog",
+                    timeout_seconds,
+                    ("Printed from : EVC", "Printed from: EVC"),
+                    "\r",
+                    continue_on_incomplete=True,
+                    max_parts=TLOG_MAX_PARTS,
+                )
+            ],
+            f"Starting time log download ({device_note}, waiting for 'Printed from : EVC', auto multi-part up to {TLOG_MAX_PARTS})...",
         )
 
     def run_adv_diagnostic(self):
@@ -804,11 +894,11 @@ class MainWindow(QMainWindow):
         output = self.diagnostic_output.toPlainText().strip()
         if not output:
             return
-        sn = self.detected_serial_number or "UNKNOWN"
+        prefix = self._diagnostic_file_prefix()
         now = datetime.now()
         datecode = now.strftime("%Y%m%d")
         timecode = now.strftime("%H%M%S")
-        filename = f"{sn}Tykon_GUI_{datecode}_{timecode}_result.txt"
+        filename = f"{prefix}_{datecode}_{timecode}_result.txt"
         log_dir = self.log_file.parent if self.log_file else Path.cwd()
         log_dir.mkdir(parents=True, exist_ok=True)
         result_path = log_dir / filename
@@ -816,6 +906,11 @@ class MainWindow(QMainWindow):
             result_path.write_text(output, encoding="utf-8")
         except Exception as exc:
             log.warning("Failed to save result text file: %s", exc)
+
+    def _diagnostic_file_prefix(self) -> str:
+        sn = self.detected_serial_number or "UNKNOWN"
+        product = re.sub(r"[^0-9A-Za-z_-]", "", self.detected_product or "") or "Unknown"
+        return f"{sn}{product}_GUI"
 
     @staticmethod
     def _extract_accumulator_info(response: str) -> str:
@@ -883,6 +978,8 @@ class MainWindow(QMainWindow):
                 self.append(f"Logging switched to {self.log_file.name}")
             self.append("Demo mode enabled: generating synthetic pdat1/psum1 stream.")
         else:
+            if not self._switch_to_low_speed(fail_on_error=True):
+                return
             if not self._query_scan_identity(setup_device_log=True, fail_on_error=True):
                 return
             if not self._switch_to_high_speed():
@@ -964,7 +1061,9 @@ class MainWindow(QMainWindow):
         self._chart_timer.start()
 
     def _switch_to_high_speed(self) -> bool:
-        if self._active_baud == HIGH_SPEED_BAUD:
+        current_baud = self._connected_baudrate()
+        if current_baud == HIGH_SPEED_BAUD:
+            self._active_baud = HIGH_SPEED_BAUD
             ver_result = self._query_ver_with_retry()
             if not ver_result.ok or not self._is_valid_ver_response(ver_result.response):
                 self.machine.transition(AppState.ERROR, ver_result.message)
@@ -972,11 +1071,16 @@ class MainWindow(QMainWindow):
                 return False
             self.append("Already at 230400 baud and communication verified")
             return True
-        self.append("Switching unit baud to 230400 via 'baud 7'")
-        baud_result = self.serial.send_command("baud 7", timeout=HANDSHAKE_TIMEOUT_S)
+        self.append(f"Switching unit baud to 230400 via '{HIGH_SPEED_BAUD_COMMAND}'")
+        baud_result = self.serial.send_command(HIGH_SPEED_BAUD_COMMAND, timeout=HANDSHAKE_TIMEOUT_S)
         if not baud_result.ok:
             self.machine.transition(AppState.ERROR, baud_result.message)
-            self.append(f"Failed to issue baud 7: {baud_result.message}")
+            self.append(f"Failed to issue {HIGH_SPEED_BAUD_COMMAND}: {baud_result.message}")
+            return False
+        if self._is_invalid_command_response(baud_result.response):
+            message = f"EVC rejected {HIGH_SPEED_BAUD_COMMAND} (Invalid Command)"
+            self.machine.transition(AppState.ERROR, message)
+            self.append(message)
             return False
         time.sleep(POST_SWITCH_SETTLE_S)
         self.serial.disconnect()
@@ -996,6 +1100,104 @@ class MainWindow(QMainWindow):
         self.baud.setCurrentText(str(HIGH_SPEED_BAUD))
         self.append(f"High-speed ver response:\n{ver_result.response}")
         return True
+
+    def _switch_to_low_speed(self, fail_on_error: bool) -> bool:
+        current_baud = self._connected_baudrate()
+        if current_baud == LOW_SPEED_BAUD:
+            self._active_baud = LOW_SPEED_BAUD
+            ver_result = self._query_ver_with_retry()
+            if not ver_result.ok or not self._is_valid_ver_response(ver_result.response):
+                if fail_on_error:
+                    self.machine.transition(AppState.ERROR, ver_result.message)
+                self.append(f"Low-speed validation failed: {ver_result.message}")
+                return False
+            self.append("Already at 57600 baud and communication verified")
+            return True
+
+        switch_command = None
+        switch_error = ""
+        for command in (LOW_SPEED_BAUD_COMMAND, LOW_SPEED_BAUD_COMMAND_FALLBACK):
+            self.append(f"Switching unit baud to 57600 via '{command}'")
+            baud_result = self.serial.send_command(command, timeout=HANDSHAKE_TIMEOUT_S)
+            if not baud_result.ok:
+                switch_error = baud_result.message
+                self.append(f"Failed to issue {command}: {baud_result.message}")
+                continue
+            if self._is_invalid_command_response(baud_result.response):
+                switch_error = f"EVC rejected {command} (Invalid Command)"
+                self.append(switch_error)
+                continue
+            switch_command = command
+            break
+        if not switch_command:
+            if fail_on_error:
+                self.machine.transition(AppState.ERROR, switch_error or "Unable to issue low-speed baud command")
+            return False
+
+        time.sleep(POST_SWITCH_SETTLE_S)
+        self.serial.disconnect()
+        self._update_usb_state_label()
+        reconnect = self.serial.connect(self.port.currentText(), LOW_SPEED_BAUD, timeout=HANDSHAKE_TIMEOUT_S)
+        self.append(reconnect.message)
+        self._update_usb_state_label()
+        if not reconnect.ok:
+            if fail_on_error:
+                self.machine.transition(AppState.ERROR, reconnect.message)
+            return False
+
+        ver_result = self._query_ver_with_retry()
+        if not ver_result.ok or not self._is_valid_ver_response(ver_result.response):
+            if fail_on_error:
+                self.machine.transition(AppState.ERROR, ver_result.message)
+            self.append(f"Post-switch low-speed ver failed: {ver_result.message}")
+            return False
+
+        self._active_baud = LOW_SPEED_BAUD
+        self.baud.setCurrentText(str(LOW_SPEED_BAUD))
+        self.append(f"Low-speed ver response:\n{ver_result.response}")
+        return True
+
+    def _restore_low_speed_on_close(self) -> bool:
+        if not self.serial.connected:
+            return True
+        port = self.port.currentText().strip()
+        if not port:
+            return False
+
+        candidates: list[int] = []
+        current_baud = self._connected_baudrate()
+        if current_baud:
+            candidates.append(current_baud)
+        candidates.extend([HIGH_SPEED_BAUD, LOW_SPEED_BAUD])
+        tried: list[int] = []
+        for baud in candidates:
+            if baud in tried:
+                continue
+            tried.append(baud)
+            if self._connected_baudrate() != baud:
+                self.serial.disconnect()
+                reconnect = self.serial.connect(port, baud, timeout=HANDSHAKE_TIMEOUT_S)
+                if not reconnect.ok:
+                    continue
+            for command in (LOW_SPEED_BAUD_COMMAND, LOW_SPEED_BAUD_COMMAND_FALLBACK):
+                switch_result = self.serial.send_command(command, timeout=HANDSHAKE_TIMEOUT_S)
+                if not switch_result.ok:
+                    continue
+                if self._is_invalid_command_response(switch_result.response):
+                    continue
+                time.sleep(POST_SWITCH_SETTLE_S)
+                self.serial.disconnect()
+                reconnect_low = self.serial.connect(port, LOW_SPEED_BAUD, timeout=HANDSHAKE_TIMEOUT_S)
+                if not reconnect_low.ok:
+                    continue
+                ver_result = self._query_ver_with_retry()
+                if not ver_result.ok or not self._is_valid_ver_response(ver_result.response):
+                    continue
+                self._active_baud = LOW_SPEED_BAUD
+                self.baud.setCurrentText(str(LOW_SPEED_BAUD))
+                self.append(f"Restored unit baud to 57600 for app exit via '{command}'")
+                return True
+        return False
 
     def _query_ver_with_retry(self):
         last_result = None
@@ -1175,6 +1377,11 @@ class MainWindow(QMainWindow):
             self.smith_chart.contour_check.setChecked(False)
             return
 
+        if not self._switch_to_high_speed():
+            self.append("Cannot download contour: failed to switch to 230400 baud")
+            self.smith_chart.contour_check.setChecked(False)
+            return
+
         if not self.machine.transition(AppState.DOWNLOADING_CONTOUR, "Downloading contour data"):
             return
         self.state_label.setText(AppState.DOWNLOADING_CONTOUR.name)
@@ -1185,6 +1392,9 @@ class MainWindow(QMainWindow):
         if self.demo_mode_check.isChecked():
             return
         if not self.serial.connected:
+            return
+        if not self._switch_to_high_speed():
+            self.append("Skipping auto contour download: unable to switch to 230400 baud")
             return
         if self.smith_chart._contour_cache:
             return
@@ -1555,6 +1765,9 @@ class MainWindow(QMainWindow):
                 self.machine.transition(AppState.IDLE, "Close requested")
             if self.machine.state in (AppState.IDLE, AppState.ERROR):
                 self.machine.transition(AppState.CLEANUP, "Application closing")
+            if self.serial.connected:
+                if not self._restore_low_speed_on_close():
+                    self.append("Warning: Could not confirm baud restore to 57600 before exit")
             self.serial.disconnect()
             self._update_usb_state_label()
             if self.machine.state == AppState.CLEANUP:

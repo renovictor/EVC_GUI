@@ -1,6 +1,6 @@
 """Single source of truth for EVC GUI version information."""
 APP_NAME = "EVC GUI"
-__version__ = "26.0.5"
+__version__ = "26.0.6"
 VERSION = tuple(int(part) for part in __version__.split("."))
 COMPANY = "ASM"
 DEPARTMENT = "PEALD RF Engineering"
@@ -8,6 +8,11 @@ AUTHOR = "Victor Huang"
 CONTACT = "victor.huang@asm.com"
 
 VERSION_HISTORY = [
+    {
+        "version": "26.0.6",
+        "date": "2026-09-30",
+        "summary": "Baud-control reliability update: enforced 57600 identity query then 230400 boost, explicit high-speed verification before contour/zpar download, and robust 57600 restore-on-exit with low-speed command fallback and real ver-based confirmation.",
+    },
     {
         "version": "26.0.5",
         "date": "2026-09-30",

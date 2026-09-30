@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## [26.0.6] - 2026-09-30
+
+### Changed
+- Start/Connect now enforces the expected baud sequence: query `ver`/`sn` at **57600**, then switch to **230400** for high-speed operation.
+- Auto contour (`zpar`) flow now explicitly verifies high-speed serial before download to preserve fast transfer behavior.
+
+### Fixed
+- Prevented false baud-switch success when EVC returns `Invalid Command`; baud transitions now require real device-side confirmation.
+- App exit now performs a robust low-speed restore path, including low-speed command fallback (`baud 5` then `baud 6`) and reconnect/`ver` confirmation at **57600**.
+
 ## [26.0.5] - 2026-09-30
 
 ### Changed
@@ -14,6 +24,11 @@ All notable changes to this project are documented in this file.
 - `tlog`/`back` diagnostic commands now use CR-only (`\r`) command termination to avoid sending an extra keystroke that can prematurely stop long tlog downloads.
 - Result text box content is now saved once on app exit to `snTykon_GUI_<date>_<time>_result.txt`.
 - Demo-mode raw logs now record non-zero, continuously varying fake measurements from run start (Pfwd/Pref/Vpp/C1/C2/Rs/Xs/etc.) instead of staying at zero for short runs.
+- `tlog` reliability improved for long logs: timeout increased to 300s and missing `Printed from : EVC` end-marker now reports an incomplete download instead of false success.
+- When `tlog` times out before footer but has data, the app now saves a `_tlog_partial.txt` file and reports partial-download status instead of losing captured output.
+- `tlog` now supports auto multi-part collection (retries incomplete chunks up to a capped part count) and merges captured parts into one output.
+- USB state display now includes active baud rate (for example `Connected (COM82 @ 230400)`).
+- Diagnostic/log filename prefix now uses detected product type (`<SN><Product>_GUI_...`) instead of hardcoded `Tykon` (e.g., Quantum/Triton names are preserved).
 
 ## [26.0.2] - 2026-09-28
 
