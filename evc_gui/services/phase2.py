@@ -9,6 +9,7 @@ import math
 import queue
 import re
 import threading
+import time
 from collections import deque
 
 from PySide6.QtCore import QObject, QThread, Signal
@@ -45,6 +46,7 @@ PSUM1_LEFT_RAW_HEADERS = [
 ]
 PSUM1_RIGHT_RAW_HEADERS = ["HVDC", "DcBias", "DcBias_RNG", "Amb.Temp", "PA.Temp"]
 LOG_ROTATION_INTERVAL = timedelta(hours=3)
+TLOG_DATA_RE = re.compile(r"^\s*(?:(?:HF|LF)\s+\S+\s+)?\d+,\d+(?:\.\d+)?\s+")
 
 
 @dataclass(frozen=True)
@@ -250,14 +252,17 @@ class SerialWorker(QThread):
         poll_interval_ms: int = 120,
         command_timeout: float = 0.8,
         demo_mode: bool = False,
+        acquisition_mode: str = "log1",
     ):
         super().__init__()
         self._serial = serial
         self._poll_interval_ms = max(20, poll_interval_ms)
         self._command_timeout = command_timeout
         self._demo_mode = demo_mode
+        self._acquisition_mode = (acquisition_mode or "log1").strip().lower()
         self._running = threading.Event()
         self._demo_tick = 0
+        self._pending_hf_tlog_line: str | None = None
 
     def start_polling(self):
         self._running.set()
@@ -268,6 +273,9 @@ class SerialWorker(QThread):
         self.wait(3000)
 
     def run(self):
+        if self._acquisition_mode == "log3":
+            self._run_tlog_rt_stream()
+            return
         while self._running.is_set():
             if self._demo_mode:
                 sample, pdat_line, psum_line = self._build_demo_sample()
@@ -277,50 +285,127 @@ class SerialWorker(QThread):
             if not self._serial.connected:
                 self.worker_error.emit("Serial disconnected during RUN state")
                 return
-            pdat = self._serial.send_command("pdat1", timeout=self._command_timeout)
-            if not pdat.ok:
-                self.worker_error.emit(pdat.message)
-                self.msleep(self._poll_interval_ms)
-                continue
-            psum = self._serial.send_command("psum1", timeout=self._command_timeout)
-            if not psum.ok:
-                self.worker_error.emit(psum.message)
-                self.msleep(self._poll_interval_ms)
-                continue
-            pdat_line = _extract_payload_line(pdat.response)
-            psum_line = _extract_payload_line(psum.response)
-            try:
-                pdat_values = parse_pdat1_line(pdat_line)
-                psum_values = parse_psum1_line(psum_line)
-                sample = EvcSample(
-                    timestamp=datetime.now(),
-                    pfwd=pdat_values["pfwd"],
-                    pref=pdat_values["pref"],
-                    c1=pdat_values["c1"],
-                    c2=pdat_values["c2"],
-                    vpp=psum_values["vpp"],
-                    dc_bias=psum_values["dc_bias"],
-                    pout=psum_values["pout"],
-                    iout=psum_values["iout"],
-                    rs=pdat_values["load_r"],
-                    xs=pdat_values["load_x"],
-                    lf_rs=psum_values.get("lf_rs", pdat_values.get("lf_load_r")),
-                    lf_xs=psum_values.get("lf_xs", pdat_values.get("lf_load_x")),
-                    lf_pfwd=pdat_values.get("lf_pfwd"),
-                    lf_pref=pdat_values.get("lf_pref"),
-                    lf_c1=pdat_values.get("lf_c1"),
-                    lf_c2=pdat_values.get("lf_c2"),
-                    lf_vpp=psum_values.get("lf_vpp"),
-                    lf_dc_bias=psum_values.get("lf_dc_bias"),
-                    lf_pout=psum_values.get("lf_pout"),
-                    lf_iout=psum_values.get("lf_iout"),
-                )
-            except Exception as exc:
-                self.worker_error.emit(f"Phase 2 parse error: {exc}")
-                self.msleep(self._poll_interval_ms)
-                continue
-            self.sample_ready.emit(sample, pdat_line, psum_line)
+            if self._acquisition_mode == "log2":
+                if not self._poll_log2_once():
+                    self.msleep(self._poll_interval_ms)
+                    continue
+            else:
+                if not self._poll_log1_once():
+                    self.msleep(self._poll_interval_ms)
+                    continue
             self.msleep(self._poll_interval_ms)
+
+    def _poll_log1_once(self) -> bool:
+        pdat = self._serial.send_command("pdat1", timeout=self._command_timeout)
+        if not pdat.ok:
+            self.worker_error.emit(pdat.message)
+            return False
+        psum = self._serial.send_command("psum1", timeout=self._command_timeout)
+        if not psum.ok:
+            self.worker_error.emit(psum.message)
+            return False
+        pdat_line = _extract_payload_line(pdat.response)
+        psum_line = _extract_payload_line(psum.response)
+        try:
+            pdat_values = parse_pdat1_line(pdat_line)
+            psum_values = parse_psum1_line(psum_line)
+            sample = EvcSample(
+                timestamp=datetime.now(),
+                pfwd=pdat_values["pfwd"],
+                pref=pdat_values["pref"],
+                c1=pdat_values["c1"],
+                c2=pdat_values["c2"],
+                vpp=psum_values["vpp"],
+                dc_bias=psum_values["dc_bias"],
+                pout=psum_values["pout"],
+                iout=psum_values["iout"],
+                rs=pdat_values["load_r"],
+                xs=pdat_values["load_x"],
+                lf_rs=psum_values.get("lf_rs", pdat_values.get("lf_load_r")),
+                lf_xs=psum_values.get("lf_xs", pdat_values.get("lf_load_x")),
+                lf_pfwd=pdat_values.get("lf_pfwd"),
+                lf_pref=pdat_values.get("lf_pref"),
+                lf_c1=pdat_values.get("lf_c1"),
+                lf_c2=pdat_values.get("lf_c2"),
+                lf_vpp=psum_values.get("lf_vpp"),
+                lf_dc_bias=psum_values.get("lf_dc_bias"),
+                lf_pout=psum_values.get("lf_pout"),
+                lf_iout=psum_values.get("lf_iout"),
+            )
+        except Exception as exc:
+            self.worker_error.emit(f"Phase 2 parse error: {exc}")
+            return False
+        self.sample_ready.emit(sample, pdat_line, psum_line)
+        return True
+
+    def _poll_log2_once(self) -> bool:
+        tlog = self._serial.send_command("tlog 1", timeout=self._command_timeout, line_ending="\r")
+        if not tlog.ok:
+            self.worker_error.emit(tlog.message)
+            return False
+        tlog_lines = _extract_tlog_payload_lines(tlog.response)
+        if not tlog_lines:
+            self.worker_error.emit("No data line received from tlog 1")
+            return False
+        try:
+            sample = sample_from_tlog_lines(tlog_lines)
+        except Exception as exc:
+            self.worker_error.emit(f"tlog 1 parse error: {exc}")
+            return False
+        primary_line = tlog_lines[0]
+        summary_line = "\n".join(tlog_lines)
+        self.sample_ready.emit(sample, primary_line, summary_line)
+        return True
+
+    def _run_tlog_rt_stream(self):
+        if not self._serial.connected:
+            self.worker_error.emit("Serial disconnected during RUN state")
+            return
+        serial_handle = getattr(self._serial, "_serial", None)
+        if serial_handle is None:
+            self.worker_error.emit("Serial handle unavailable for tlog rt mode")
+            return
+        old_timeout = serial_handle.timeout
+        try:
+            serial_handle.reset_input_buffer()
+            serial_handle.timeout = max(0.01, min(0.1, self._command_timeout))
+            serial_handle.write(b"tlog rt\r")
+            serial_handle.flush()
+            while self._running.is_set():
+                raw = serial_handle.readline()
+                if not raw:
+                    continue
+                line = raw.decode(errors="replace").strip()
+                if not line:
+                    continue
+                lowered = line.lower()
+                if "invalid command" in lowered:
+                    self.worker_error.emit("tlog rt is not supported on this EVC (Invalid Command)")
+                    return
+                if not TLOG_DATA_RE.match(line):
+                    continue
+                try:
+                    if line.upper().startswith("HF "):
+                        self._pending_hf_tlog_line = line
+                        continue
+                    if line.upper().startswith("LF ") and self._pending_hf_tlog_line:
+                        sample = sample_from_tlog_lines([self._pending_hf_tlog_line, line])
+                        self._pending_hf_tlog_line = None
+                    else:
+                        sample = sample_from_tlog_line(line)
+                except Exception as exc:
+                    self.worker_error.emit(f"tlog rt parse error: {exc}")
+                    continue
+                self.sample_ready.emit(sample, line, line)
+        except Exception as exc:
+            self.worker_error.emit(f"tlog rt stream error: {exc}")
+        finally:
+            try:
+                serial_handle.write(b"\r")
+                serial_handle.flush()
+            except Exception:
+                pass
+            serial_handle.timeout = old_timeout
 
     def _build_demo_sample(self) -> tuple[EvcSample, str, str]:
         elapsed_s = (self._demo_tick * self._poll_interval_ms) / 1000.0
@@ -382,13 +467,162 @@ def _extract_payload_line(response: str) -> str:
     return ""
 
 
+def _extract_tlog_payload_line(response: str) -> str:
+    for line in reversed(response.splitlines()):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if TLOG_DATA_RE.match(stripped):
+            return stripped
+    return ""
+
+
+def _extract_tlog_payload_lines(response: str) -> list[str]:
+    lines: list[str] = []
+    for raw_line in response.splitlines():
+        stripped = raw_line.strip()
+        if not stripped:
+            continue
+        if TLOG_DATA_RE.match(stripped):
+            lines.append(stripped)
+    return lines
+
+
+def _to_float_token(token: str, default: float = 0.0) -> float:
+    if token is None:
+        return default
+    text = token.strip()
+    if not text:
+        return default
+    text = text.replace(",", ".")
+    match = re.search(r"[-+]?\d+(?:\.\d+)?", text)
+    if not match:
+        return default
+    try:
+        return float(match.group(0))
+    except ValueError:
+        return default
+
+
+def _pick_plausible(values: list[float], low: float, high: float, default: float = 0.0) -> float:
+    for value in values:
+        if low <= value <= high:
+            return value
+    return default
+
+
+def sample_from_tlog_line(line: str) -> EvcSample:
+    if "|" in line:
+        left_text, right_text = line.split("|", 1)
+    else:
+        left_text, right_text = line, ""
+    left_tokens = left_text.split()
+    right_tokens = right_text.split()
+    if len(left_tokens) < 12:
+        raise ValueError(f"Incomplete tlog payload ({len(left_tokens)} tokens)")
+
+    if left_tokens[0].upper() in {"HF", "LF"} and len(left_tokens) > 2:
+        left_tokens = left_tokens[2:]
+
+    if "->" not in left_tokens:
+        raise ValueError("Missing '->' marker in tlog payload")
+    arrow_idx = left_tokens.index("->")
+    if arrow_idx < 12:
+        raise ValueError("tlog payload too short before '->'")
+
+    pfwd = _to_float_token(left_tokens[arrow_idx - 11], 0.0)
+    pref = _to_float_token(left_tokens[arrow_idx - 10], 0.0)
+    rs = _to_float_token(left_tokens[arrow_idx - 8], 0.0)
+    xs = _to_float_token(left_tokens[arrow_idx - 7], 0.0)
+    c1 = _to_float_token(left_tokens[arrow_idx - 5], 0.0)
+    c2 = _to_float_token(left_tokens[arrow_idx - 3], 0.0)
+
+    vpp = _to_float_token(left_tokens[arrow_idx + 5] if len(left_tokens) > (arrow_idx + 5) else "", 0.0)
+    iout_candidates = [
+        _to_float_token(left_tokens[arrow_idx + 7] if len(left_tokens) > (arrow_idx + 7) else "", 0.0),
+        _to_float_token(left_tokens[arrow_idx + 8] if len(left_tokens) > (arrow_idx + 8) else "", 0.0),
+        _to_float_token(left_tokens[arrow_idx + 9] if len(left_tokens) > (arrow_idx + 9) else "", 0.0),
+    ]
+    pout_candidates = [
+        _to_float_token(left_tokens[arrow_idx + 8] if len(left_tokens) > (arrow_idx + 8) else "", 0.0),
+        _to_float_token(left_tokens[arrow_idx + 9] if len(left_tokens) > (arrow_idx + 9) else "", 0.0),
+        _to_float_token(left_tokens[arrow_idx + 10] if len(left_tokens) > (arrow_idx + 10) else "", 0.0),
+    ]
+    iout = _pick_plausible(iout_candidates, -500.0, 500.0, 0.0)
+    pout = _pick_plausible(pout_candidates, -5000.0, 5000.0, 0.0)
+    dc_bias = _to_float_token(right_tokens[0], 0.0) if right_tokens else 0.0
+
+    return EvcSample(
+        timestamp=datetime.now(),
+        pfwd=pfwd,
+        pref=pref,
+        c1=c1,
+        c2=c2,
+        vpp=vpp,
+        dc_bias=dc_bias,
+        pout=pout,
+        iout=iout,
+        rs=rs,
+        xs=xs,
+    )
+
+
+def sample_from_tlog_lines(lines: list[str]) -> EvcSample:
+    if not lines:
+        raise ValueError("No tlog data lines")
+    hf_line = None
+    lf_line = None
+    for line in lines:
+        upper = line.upper()
+        if upper.startswith("HF "):
+            hf_line = line
+        elif upper.startswith("LF "):
+            lf_line = line
+    if hf_line and lf_line:
+        hf = sample_from_tlog_line(hf_line)
+        lf = sample_from_tlog_line(lf_line)
+        return EvcSample(
+            timestamp=hf.timestamp,
+            pfwd=hf.pfwd,
+            pref=hf.pref,
+            c1=hf.c1,
+            c2=hf.c2,
+            vpp=hf.vpp,
+            dc_bias=hf.dc_bias,
+            pout=hf.pout,
+            iout=hf.iout,
+            rs=hf.rs,
+            xs=hf.xs,
+            lf_rs=lf.rs,
+            lf_xs=lf.xs,
+            lf_pfwd=lf.pfwd,
+            lf_pref=lf.pref,
+            lf_c1=lf.c1,
+            lf_c2=lf.c2,
+            lf_vpp=lf.vpp,
+            lf_dc_bias=lf.dc_bias,
+            lf_pout=lf.pout,
+            lf_iout=lf.iout,
+        )
+    return sample_from_tlog_line(lines[-1])
+
+
 class CsvWriter:
     _STOP = object()
 
-    def __init__(self, tmp_path: Path, final_path: Path, headers: list[str]):
+    def __init__(
+        self,
+        tmp_path: Path,
+        final_path: Path,
+        headers: list[str],
+        flush_every_rows: int = 1,
+        flush_interval_s: float = 0.2,
+    ):
         self._tmp_path = tmp_path
         self._final_path = final_path
         self._headers = headers
+        self._flush_every_rows = max(1, int(flush_every_rows))
+        self._flush_interval_s = max(0.05, float(flush_interval_s))
         self._queue: queue.Queue[object] = queue.Queue()
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._started = False
@@ -419,13 +653,24 @@ class CsvWriter:
             if not file_exists:
                 writer.writeheader()
                 f.flush()
+            pending_rows = 0
+            last_flush_at = time.monotonic()
             while True:
                 item = self._queue.get()
                 if item is self._STOP:
-                    f.flush()
+                    if pending_rows:
+                        f.flush()
                     return
                 writer.writerow(item)
-                f.flush()
+                pending_rows += 1
+                now = time.monotonic()
+                if (
+                    pending_rows >= self._flush_every_rows
+                    or (now - last_flush_at) >= self._flush_interval_s
+                ):
+                    f.flush()
+                    pending_rows = 0
+                    last_flush_at = now
 
 
 class DataController(QObject):
@@ -438,11 +683,16 @@ class DataController(QObject):
         serial_number: str,
         firmware: str,
         max_samples: int = 7200,
+        raw_flush_every_rows: int = 1,
+        raw_flush_interval_s: float = 0.2,
     ):
         super().__init__()
         self._samples: deque[EvcSample] = deque(maxlen=max_samples)
         self._logs_dir = logs_dir
         self._safe_serial = re.sub(r"[^0-9A-Za-z_-]", "", serial_number) or "unknown"
+        self._safe_product = re.sub(r"[^0-9A-Za-z_-]", "", product) or "Unknown"
+        self._raw_flush_every_rows = max(1, int(raw_flush_every_rows))
+        self._raw_flush_interval_s = max(0.05, float(raw_flush_interval_s))
         self._raw_writer: CsvWriter | None = None
         self._active_log_started_at: datetime | None = None
         self._meta = {
@@ -453,7 +703,7 @@ class DataController(QObject):
     def _open_writers(self, started_at: datetime):
         date_code = started_at.strftime("%Y%m%d")
         time_code = started_at.strftime("%H%M")
-        base_name = f"{self._safe_serial}Tykon_GUI_{date_code}_{time_code}"
+        base_name = f"{self._safe_serial}{self._safe_product}_GUI_{date_code}_{time_code}"
         raw_base = f"{base_name}_raw.csv"
         self._raw_writer = CsvWriter(
             tmp_path=self._logs_dir / f"{raw_base}.tmp",
@@ -465,6 +715,8 @@ class DataController(QObject):
                 *PSUM1_LEFT_RAW_HEADERS,
                 *PSUM1_RIGHT_RAW_HEADERS,
             ],
+            flush_every_rows=self._raw_flush_every_rows,
+            flush_interval_s=self._raw_flush_interval_s,
         )
         self._raw_writer.start()
         self._active_log_started_at = started_at

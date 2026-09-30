@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented in this file.
 
+## [26.0.7] - 2026-09-30
+
+### Added
+- New **Log1 / Log2 / Log3** acquisition controls:
+  - **Log1**: `pdat1 + psum1`
+  - **Log2**: `tlog 1`
+  - **Log3**: `tlog rt` streaming mode
+- Runtime **RUN Profile** tuning support (Baseline / Aggressive / Max Throughput) for A/B throughput testing.
+- In-app 10-loop sample-rate benchmark reporting for live/final performance comparison.
+- Hover tooltips for Log1/Log2/Log3 buttons to explain acquisition behavior to users.
+- Benchmark record document `SAMPLE_RATE_BENCHMARK_2026-09-30.md`.
+
+### Changed
+- `tlog` parser handling expanded for cross-device format variation (Quantum HF/LF paired rows, Triton/Tykon/Chronos variants).
+- Chronos family now falls back from Log3 (`tlog rt`) to Log2 (`tlog 1`) automatically because `tlog rt` is unsupported on sampled Chronos units.
+
+### Fixed
+- Raw log filename convention restored to use detected product type (`<SN><Product>_GUI_...`) instead of hardcoded `Tykon`.
+
 ## [26.0.6] - 2026-09-30
 
 ### Changed

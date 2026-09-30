@@ -56,6 +56,31 @@ RUN_COMMAND_TIMEOUT_S = 0.075
 HANDSHAKE_TIMEOUT_S = 1.0
 SCAN_COMMAND_TIMEOUT_S = 0.5
 POST_SWITCH_SETTLE_S = 0.35
+SAMPLE_RATE_WINDOW_LOOPS = 10
+SAMPLE_RATE_REPORT_INTERVAL_S = 5.0
+RUN_PROFILE_CONFIGS: dict[str, dict[str, float | int]] = {
+    "Baseline": {
+        "poll_interval_ms": 120,
+        "command_timeout_s": RUN_COMMAND_TIMEOUT_S,
+        "ui_update_stride": 1,
+        "raw_flush_every_rows": 1,
+        "raw_flush_interval_s": 0.2,
+    },
+    "Aggressive": {
+        "poll_interval_ms": 60,
+        "command_timeout_s": 0.06,
+        "ui_update_stride": 2,
+        "raw_flush_every_rows": 10,
+        "raw_flush_interval_s": 0.4,
+    },
+    "Max Throughput": {
+        "poll_interval_ms": 30,
+        "command_timeout_s": 0.05,
+        "ui_update_stride": 3,
+        "raw_flush_every_rows": 25,
+        "raw_flush_interval_s": 0.6,
+    },
+}
 VER_RETRY_COUNT = 3
 SCAN_VER_RETRY_COUNT = 3
 ZPAR_COMMAND_TIMEOUT_S = 0.5
@@ -196,6 +221,14 @@ class MainWindow(QMainWindow):
         self._diagnostic_job_kind: str | None = None
         self._diagnostic_timestamp = ""
         self._controller: DataController | None = None
+        self._sample_rate_window_timestamps: list[float] = []
+        self._sample_rate_hz_windows: list[float] = []
+        self._sample_rate_total_samples = 0
+        self._sample_rate_last_report_at = 0.0
+        self._run_profile_name = "Baseline"
+        self._run_ui_update_stride = 1
+        self._run_ui_sample_counter = 0
+        self._run_mode = "log1"
         self._chart_timer = QTimer(self)
         self._chart_timer.setInterval(250)
         self._chart_timer.timeout.connect(self._refresh_scope)
@@ -233,41 +266,55 @@ class MainWindow(QMainWindow):
         self.baud = QComboBox()
         self.baud.addItems(["9600", "19200", "38400", "57600", "115200", "230400"])
         self.baud.setCurrentText(str(LOW_SPEED_BAUD))
+        self.run_profile = QComboBox()
+        self.run_profile.addItems(list(RUN_PROFILE_CONFIGS.keys()))
+        self.run_profile.setCurrentText("Baseline")
         self.serial_number_value = QLabel("-")
         self.refresh_btn = QPushButton("Refresh Ports")
         self.start_btn = QPushButton("Start / Connect")
         self.demo_mode_check = QCheckBox("Demo Mode (Phase 2/3)")
         self.probe_btn = QPushButton("Probe")
-        self.run_btn = QPushButton("Run")
+        self.log1_btn = QPushButton("Log1")
+        self.log2_btn = QPushButton("Log2")
+        self.log3_btn = QPushButton("Log3")
+        self.log1_btn.setToolTip("Log1: Legacy polling mode using pdat1 + psum1 (2 commands per loop).")
+        self.log2_btn.setToolTip("Log2: Single-command mode using tlog 1 (1 command per loop).")
+        self.log3_btn.setToolTip("Log3: Streaming mode using tlog rt for highest sample-rate throughput (Chronos falls back to Log2).")
         self.abort_btn = QPushButton("Abort")
         self.exit_btn = QPushButton("Exit")
         self.probe_btn.setEnabled(False)
-        self.run_btn.setEnabled(False)
+        self.log1_btn.setEnabled(False)
+        self.log2_btn.setEnabled(False)
+        self.log3_btn.setEnabled(False)
         self.abort_btn.setEnabled(False)
         widgets = [
             ("Detected Product", self.product_value),
             ("Detected Unit S/N", self.serial_number_value),
             ("COM Port", self.port),
             ("Baud", self.baud),
+            ("RUN Profile", self.run_profile),
         ]
         for row, (text, widget) in enumerate(widgets):
             form.addWidget(QLabel(text), row, 0)
             form.addWidget(widget, row, 1)
-        form.addWidget(self.refresh_btn, 4, 0, 1, 2)
-        form.addWidget(self.start_btn, 5, 0, 1, 2)
-        form.addWidget(self.demo_mode_check, 6, 0, 1, 2)
-        form.addWidget(self.probe_btn, 7, 0, 1, 2)
-        form.addWidget(self.run_btn, 8, 0, 1, 2)
-        form.addWidget(self.abort_btn, 9, 0, 1, 2)
-        form.addWidget(self.exit_btn, 10, 0, 1, 2)
+        control_row = len(widgets)
+        form.addWidget(self.refresh_btn, control_row, 0, 1, 2)
+        form.addWidget(self.start_btn, control_row + 1, 0, 1, 2)
+        form.addWidget(self.demo_mode_check, control_row + 2, 0, 1, 2)
+        form.addWidget(self.probe_btn, control_row + 3, 0, 1, 2)
+        form.addWidget(self.log1_btn, control_row + 4, 0, 1, 2)
+        form.addWidget(self.log2_btn, control_row + 5, 0, 1, 2)
+        form.addWidget(self.log3_btn, control_row + 6, 0, 1, 2)
+        form.addWidget(self.abort_btn, control_row + 7, 0, 1, 2)
+        form.addWidget(self.exit_btn, control_row + 8, 0, 1, 2)
         self.state_label = QLabel("INITIALIZATION")
         self.state_label.setObjectName("state")
-        form.addWidget(QLabel("State"), 11, 0)
-        form.addWidget(self.state_label, 11, 1)
+        form.addWidget(QLabel("State"), control_row + 9, 0)
+        form.addWidget(self.state_label, control_row + 9, 1)
         self.usb_state_label = QLabel("Disconnected")
         self.usb_state_label.setObjectName("state")
-        form.addWidget(QLabel("USB State"), 12, 0)
-        form.addWidget(self.usb_state_label, 12, 1)
+        form.addWidget(QLabel("USB State"), control_row + 10, 0)
+        form.addWidget(self.usb_state_label, control_row + 10, 1)
         self.progress = QProgressBar()
         self.progress.setMinimumHeight(40)  # Make progress indicator noticeably larger
         # Style progress bar: red chunk and thicker appearance
@@ -283,8 +330,8 @@ class MainWindow(QMainWindow):
                 border-radius: 3px;
             }
         """)
-        form.addWidget(self.progress, 13, 0, 1, 2)
-        form.setRowStretch(14, 1)
+        form.addWidget(self.progress, control_row + 11, 0, 1, 2)
+        form.setRowStretch(control_row + 12, 1)
         body.addWidget(control, 0)
 
         tabs = QTabWidget()
@@ -365,7 +412,9 @@ class MainWindow(QMainWindow):
         self.adv_diag_btn.clicked.connect(self.run_adv_diagnostic)
         self.button_a.clicked.connect(self.run_button_a)
         self.button_b.clicked.connect(self.run_button_b)
-        self.run_btn.clicked.connect(self.run_monitoring)
+        self.log1_btn.clicked.connect(self.run_log1)
+        self.log2_btn.clicked.connect(self.run_log2)
+        self.log3_btn.clicked.connect(self.run_log3)
         self.abort_btn.clicked.connect(self.abort)
         self.exit_btn.clicked.connect(self.close)
         self.setStyleSheet(
@@ -957,10 +1006,75 @@ class MainWindow(QMainWindow):
         self.diagnostic_output.setPlainText(output)
         self.append("Button B: Not yet implemented")
 
-    def run_monitoring(self):
+    def _reset_sample_rate_benchmark(self):
+        self._sample_rate_window_timestamps = []
+        self._sample_rate_hz_windows = []
+        self._sample_rate_total_samples = 0
+        self._sample_rate_last_report_at = 0.0
+
+    def _sample_rate_summary(self) -> str | None:
+        if not self._sample_rate_hz_windows:
+            return None
+        current_hz = self._sample_rate_hz_windows[-1]
+        avg_hz = sum(self._sample_rate_hz_windows) / len(self._sample_rate_hz_windows)
+        min_hz = min(self._sample_rate_hz_windows)
+        max_hz = max(self._sample_rate_hz_windows)
+        return (
+            f"Sample rate (10-loop): current={current_hz:.2f} Hz, "
+            f"avg={avg_hz:.2f} Hz, min={min_hz:.2f} Hz, max={max_hz:.2f} Hz, "
+            f"windows={len(self._sample_rate_hz_windows)}"
+        )
+
+    def _record_sample_rate_benchmark(self):
+        now = time.perf_counter()
+        self._sample_rate_total_samples += 1
+        self._sample_rate_window_timestamps.append(now)
+        window_size = SAMPLE_RATE_WINDOW_LOOPS + 1
+        if len(self._sample_rate_window_timestamps) > window_size:
+            self._sample_rate_window_timestamps = self._sample_rate_window_timestamps[-window_size:]
+        if len(self._sample_rate_window_timestamps) < window_size:
+            return
+        elapsed = self._sample_rate_window_timestamps[-1] - self._sample_rate_window_timestamps[0]
+        if elapsed <= 0:
+            return
+        rate_hz = SAMPLE_RATE_WINDOW_LOOPS / elapsed
+        self._sample_rate_hz_windows.append(rate_hz)
+        if (now - self._sample_rate_last_report_at) < SAMPLE_RATE_REPORT_INTERVAL_S:
+            return
+        self._sample_rate_last_report_at = now
+        summary = self._sample_rate_summary()
+        if summary:
+            self.append(summary)
+
+    def _selected_run_profile(self) -> tuple[str, dict[str, float | int]]:
+        profile_name = self.run_profile.currentText().strip() or "Baseline"
+        config = RUN_PROFILE_CONFIGS.get(profile_name, RUN_PROFILE_CONFIGS["Baseline"])
+        return profile_name, config
+
+    def run_log1(self):
+        self.run_monitoring("log1")
+
+    def run_log2(self):
+        self.run_monitoring("log2")
+
+    def run_log3(self):
+        self.run_monitoring("log3")
+
+    def run_monitoring(self, mode: str = "log1"):
+        mode = (mode or "log1").strip().lower()
+        if mode not in {"log1", "log2", "log3"}:
+            mode = "log1"
+        self._run_mode = mode
         demo_mode = self.demo_mode_check.isChecked()
+        profile_name, profile_config = self._selected_run_profile()
+        self._run_profile_name = profile_name
+        self._run_ui_update_stride = max(1, int(profile_config["ui_update_stride"]))
+        self._run_ui_sample_counter = 0
         self.smith_chart.reset_points()
         self.smith_chart.set_demo_mode(demo_mode)
+        if demo_mode and mode != "log1":
+            QMessageBox.warning(self, "Demo Mode", "Log2/Log3 are not supported in Demo Mode. Use Log1.")
+            return
         if not demo_mode and not self.serial.connected:
             QMessageBox.warning(self, "Not Connected", "Connect to a COM port first.")
             return
@@ -982,18 +1096,25 @@ class MainWindow(QMainWindow):
                 return
             if not self._query_scan_identity(setup_device_log=True, fail_on_error=True):
                 return
+            if mode == "log3" and self._is_chronos_family():
+                self.append("LOG3 (tlog rt) is not supported on Chronos. Falling back to LOG2 (tlog 1).")
+                mode = "log2"
+                self._run_mode = "log2"
             if not self._switch_to_high_speed():
                 return
 
         self.machine.transition(AppState.CHECK_CONNECTION, "Validate existing connection")
         self.machine.transition(AppState.GETTING_START, "Prepare monitoring")
-        self.machine.transition(AppState.RUN, "Phase 2 data acquisition run")
+        self.machine.transition(AppState.RUN, f"Phase 2 data acquisition run ({mode.upper()})")
         self.progress.setRange(0, 0)
         self.abort_btn.setEnabled(True)
-        self.run_btn.setEnabled(False)
+        self.log1_btn.setEnabled(False)
+        self.log2_btn.setEnabled(False)
+        self.log3_btn.setEnabled(False)
         self.probe_btn.setEnabled(False)
         self.start_btn.setEnabled(False)
         self.demo_mode_check.setEnabled(False)
+        self.run_profile.setEnabled(False)
         # Disable diagnostic buttons during run
         self.diagnostic_btn.setEnabled(False)
         self.backup_btn.setEnabled(False)
@@ -1003,11 +1124,24 @@ class MainWindow(QMainWindow):
         self.button_b.setEnabled(False)
         if self.smith_chart.contour_check.isChecked():
             self.smith_chart.show_contour(True)
-        self._start_phase2_pipeline(demo_mode=demo_mode)
+        self._reset_sample_rate_benchmark()
+        self.append(
+            f"RUN profile: {self._run_profile_name} "
+            f"(poll={int(profile_config['poll_interval_ms'])}ms, "
+            f"cmd_timeout={float(profile_config['command_timeout_s']):.3f}s, "
+            f"ui_stride={self._run_ui_update_stride}, "
+            f"log_flush_rows={int(profile_config['raw_flush_every_rows'])})"
+        )
+        self._start_phase2_pipeline(demo_mode=demo_mode, mode=mode)
         if demo_mode:
-            self.append("RUN entered. Feeding demo data into Power Scope.")
+            self.append("LOG1 entered. Feeding demo data into Power Scope.")
         else:
-            self.append("RUN entered. Querying pdat1 + psum1 and updating Power Scope.")
+            mode_message = {
+                "log1": "LOG1 entered. Querying pdat1 + psum1 and updating Power Scope.",
+                "log2": "LOG2 entered. Querying tlog 1 and updating Power Scope.",
+                "log3": "LOG3 entered. Streaming tlog rt and updating Power Scope.",
+            }
+            self.append(mode_message.get(mode, "RUN entered."))
 
     def abort(self):
         if self._diagnostic_worker and self._diagnostic_worker.isRunning():
@@ -1022,6 +1156,9 @@ class MainWindow(QMainWindow):
             self._update_controls_for_idle()
             return
         self._stop_phase2_pipeline()
+        summary = self._sample_rate_summary()
+        if summary:
+            self.append(f"RUN sample-rate benchmark final: {summary}")
         self.smith_chart.set_demo_mode(self.demo_mode_check.isChecked())
         if self.machine.state == AppState.RUN:
             self.machine.transition(AppState.IDLE, "User abort")
@@ -1029,6 +1166,11 @@ class MainWindow(QMainWindow):
         self.progress.setValue(0)
         self.abort_btn.setEnabled(False)
         self.demo_mode_check.setEnabled(True)
+        self.run_profile.setEnabled(True)
+        demo_mode = self.demo_mode_check.isChecked()
+        self.log1_btn.setEnabled(demo_mode or self.serial.connected)
+        self.log2_btn.setEnabled((not demo_mode) and self.serial.connected)
+        self.log3_btn.setEnabled((not demo_mode) and self.serial.connected)
         # Enable diagnostic buttons after abort
         if self.serial.connected:
             self.diagnostic_btn.setEnabled(True)
@@ -1041,20 +1183,37 @@ class MainWindow(QMainWindow):
         self._update_controls_for_idle()
         self.append("Run aborted safely")
 
-    def _start_phase2_pipeline(self, demo_mode: bool):
+    def _start_phase2_pipeline(self, demo_mode: bool, mode: str = "log1"):
         if self._worker and self._worker.isRunning():
             self._worker.stop_polling()
         if self._controller:
             self._controller.close()
+        profile = RUN_PROFILE_CONFIGS.get(self._run_profile_name, RUN_PROFILE_CONFIGS["Baseline"])
+        raw_flush_every_rows = int(profile["raw_flush_every_rows"])
+        raw_flush_interval_s = float(profile["raw_flush_interval_s"])
         logs_dir = self.log_file.parent
         self._controller = DataController(
             logs_dir=logs_dir,
             product=self.detected_product,
             serial_number=self.detected_serial_number,
             firmware=self.detected_firmware,
+            raw_flush_every_rows=raw_flush_every_rows,
+            raw_flush_interval_s=raw_flush_interval_s,
         )
-        command_timeout = RUN_COMMAND_TIMEOUT_S if not demo_mode else 0.8
-        self._worker = SerialWorker(self.serial, demo_mode=demo_mode, command_timeout=command_timeout)
+        poll_interval_ms = int(profile["poll_interval_ms"]) if not demo_mode else 120
+        command_timeout = float(profile["command_timeout_s"]) if not demo_mode else 0.8
+        if mode == "log2":
+            command_timeout = max(command_timeout, 0.25)
+        if mode == "log3":
+            poll_interval_ms = 20
+            command_timeout = max(command_timeout, 0.1)
+        self._worker = SerialWorker(
+            self.serial,
+            poll_interval_ms=poll_interval_ms,
+            demo_mode=demo_mode,
+            command_timeout=command_timeout,
+            acquisition_mode=mode,
+        )
         self._worker.sample_ready.connect(self._on_sample_ready)
         self._worker.worker_error.connect(self._on_worker_error)
         self._worker.start_polling()
@@ -1330,7 +1489,11 @@ class MainWindow(QMainWindow):
     def _on_sample_ready(self, sample, pdat_line: str, psum_line: str):
         if not self._controller:
             return
+        self._record_sample_rate_benchmark()
         self._controller.append_sample(sample, pdat_line, psum_line)
+        self._run_ui_sample_counter += 1
+        if (self._run_ui_sample_counter % max(1, self._run_ui_update_stride)) != 0:
+            return
         if self.demo_mode_check.isChecked():
             self.smith_chart.append_demo_point()
         else:
@@ -1411,7 +1574,9 @@ class MainWindow(QMainWindow):
         if self.machine.state == AppState.RUN:
             return
         if self.machine.state == AppState.DOWNLOADING_CONTOUR:
-            self.run_btn.setEnabled(False)
+            self.log1_btn.setEnabled(False)
+            self.log2_btn.setEnabled(False)
+            self.log3_btn.setEnabled(False)
             self.probe_btn.setEnabled(False)
             return
         if self.machine.state == AppState.DOWNLOADING_DIAGNOSTIC:
@@ -1419,8 +1584,11 @@ class MainWindow(QMainWindow):
             self.refresh_btn.setEnabled(False)
             self.port.setEnabled(False)
             self.baud.setEnabled(False)
+            self.run_profile.setEnabled(False)
             self.demo_mode_check.setEnabled(False)
-            self.run_btn.setEnabled(False)
+            self.log1_btn.setEnabled(False)
+            self.log2_btn.setEnabled(False)
+            self.log3_btn.setEnabled(False)
             self.probe_btn.setEnabled(False)
             self.diagnostic_btn.setEnabled(False)
             self.backup_btn.setEnabled(False)
@@ -1429,10 +1597,13 @@ class MainWindow(QMainWindow):
             self.button_a.setEnabled(False)
             self.button_b.setEnabled(False)
             return
-        self.run_btn.setEnabled(demo_mode or self.serial.connected)
-        self.probe_btn.setEnabled(self.serial.connected and not demo_mode)
-        # Enable diagnostic buttons when connected
         connected = self.serial.connected
+        self.log1_btn.setEnabled(demo_mode or connected)
+        self.log2_btn.setEnabled((not demo_mode) and connected)
+        self.log3_btn.setEnabled((not demo_mode) and connected)
+        self.probe_btn.setEnabled(self.serial.connected and not demo_mode)
+        self.run_profile.setEnabled(True)
+        # Enable diagnostic buttons when connected
         self.diagnostic_btn.setEnabled(connected)
         self.backup_btn.setEnabled(connected)
         self.tlog_btn.setEnabled(connected)

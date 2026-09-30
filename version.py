@@ -1,6 +1,6 @@
 """Single source of truth for EVC GUI version information."""
 APP_NAME = "EVC GUI"
-__version__ = "26.0.6"
+__version__ = "26.0.7"
 VERSION = tuple(int(part) for part in __version__.split("."))
 COMPANY = "ASM"
 DEPARTMENT = "PEALD RF Engineering"
@@ -8,6 +8,11 @@ AUTHOR = "Victor Huang"
 CONTACT = "victor.huang@asm.com"
 
 VERSION_HISTORY = [
+    {
+        "version": "26.0.7",
+        "date": "2026-09-30",
+        "summary": "Acquisition-mode expansion release: Log1/Log2/Log3 workflows with sample-rate benchmarking, tlog rt high-speed streaming support, cross-device tlog parser hardening (Quantum/Triton/Chronos variants), Chronos Log3 fallback to Log2, run-mode tooltips, and product-aware raw filename restoration.",
+    },
     {
         "version": "26.0.6",
         "date": "2026-09-30",
