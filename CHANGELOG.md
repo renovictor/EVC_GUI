@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [26.0.5] - 2026-09-30
+
+### Changed
+- Optimized contour `zpar` download path from about **130s** to about **13s** by using faster command-read completion logic.
+- Added a live **USB State** field under system state to show whether serial USB is connected or disconnected.
+
+### Fixed
+- Backup/Advanced Diagnostic `back` download now treats `Printed from : EVC` as end-of-response so the app can finish and save immediately after transfer completion.
+- Backup/Advanced Diagnostic now detect `Invalid Command` from older EVC firmware and report backup as unsupported instead of attempting to save as a successful download.
+- `tlog`/`back` diagnostic commands now use CR-only (`\r`) command termination to avoid sending an extra keystroke that can prematurely stop long tlog downloads.
+- Result text box content is now saved once on app exit to `snTykon_GUI_<date>_<time>_result.txt`.
+- Demo-mode raw logs now record non-zero, continuously varying fake measurements from run start (Pfwd/Pref/Vpp/C1/C2/Rs/Xs/etc.) instead of staying at zero for short runs.
+
 ## [26.0.2] - 2026-09-28
 
 ### Added

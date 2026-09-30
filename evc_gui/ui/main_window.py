@@ -2,11 +2,14 @@ import csv
 import cmath
 import logging
 import math
+import threading
 import time
 from pathlib import Path
+from datetime import datetime
 import re
+from dataclasses import dataclass
 
-from PySide6.QtCore import Qt, QTimer, Slot, Signal, QObject
+from PySide6.QtCore import Qt, QTimer, Slot, Signal, QObject, QThread
 from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import (
@@ -51,15 +54,92 @@ SCAN_COMMAND_TIMEOUT_S = 0.5
 POST_SWITCH_SETTLE_S = 0.35
 VER_RETRY_COUNT = 3
 SCAN_VER_RETRY_COUNT = 3
+ZPAR_COMMAND_TIMEOUT_S = 0.5
+ZPAR_READ_TIMEOUT_S = 0.01
+ZPAR_PAYLOAD_QUIET_S = 0.03
 TYKON_FAULT_EXPLANATIONS = {
     "25": "Power Supplies Not On",
     "43": "DC Fault (DC PS Setup/Comm)",
 }
+BACKUP_END_MARKERS = ("Printed from : EVC", "Printed from: EVC")
 
 
 # Signal emitter for thread-safe scanning completion
 class ScanCompleteSignals(QObject):
     scan_complete = Signal(list)  # Emits list of DetectedDevice
+
+
+@dataclass(frozen=True)
+class DiagnosticCommand:
+    key: str
+    command: str
+    timeout: float
+    end_markers: tuple[str, ...] = ()
+    line_ending: str = "\r\n"
+
+
+@dataclass(frozen=True)
+class DiagnosticCommandResult:
+    key: str
+    command: str
+    ok: bool
+    message: str
+    response: str
+
+
+@dataclass(frozen=True)
+class DiagnosticJobResult:
+    ok: bool
+    message: str
+    results: dict[str, DiagnosticCommandResult]
+
+
+class DiagnosticJobWorker(QThread):
+    progress = Signal(str)
+    line_received = Signal(str)
+    job_finished = Signal(object)
+
+    def __init__(self, serial: SerialService, steps: list[DiagnosticCommand]):
+        super().__init__()
+        self._serial = serial
+        self._steps = steps
+        self._cancelled = threading.Event()
+
+    def request_cancel(self):
+        self._cancelled.set()
+
+    def run(self):
+        results: dict[str, DiagnosticCommandResult] = {}
+        try:
+            for step in self._steps:
+                if self._cancelled.is_set():
+                    self.job_finished.emit(DiagnosticJobResult(False, "Diagnostic download cancelled", results))
+                    return
+                self.progress.emit(f"Sending {step.command}...")
+                result = self._serial.send_command(
+                    step.command,
+                    timeout=step.timeout,
+                    cancel_event=self._cancelled,
+                    end_markers=step.end_markers,
+                    line_callback=self.line_received.emit,
+                    line_ending=step.line_ending,
+                )
+                step_result = DiagnosticCommandResult(
+                    key=step.key,
+                    command=step.command,
+                    ok=result.ok,
+                    message=result.message,
+                    response=result.response,
+                )
+                results[step.key] = step_result
+                if not result.ok:
+                    message = "Diagnostic download cancelled" if self._cancelled.is_set() else result.message
+                    self.job_finished.emit(DiagnosticJobResult(False, message, results))
+                    return
+            self.job_finished.emit(DiagnosticJobResult(True, "Diagnostic download complete", results))
+        except Exception as exc:
+            log.exception("Diagnostic worker failed")
+            self.job_finished.emit(DiagnosticJobResult(False, f"Diagnostic download failed: {exc}", results))
 
 
 class MainWindow(QMainWindow):
@@ -76,6 +156,9 @@ class MainWindow(QMainWindow):
         self._active_baud = 57600
         self._device_log_ready = False
         self._worker: SerialWorker | None = None
+        self._diagnostic_worker: DiagnosticJobWorker | None = None
+        self._diagnostic_job_kind: str | None = None
+        self._diagnostic_timestamp = ""
         self._controller: DataController | None = None
         self._chart_timer = QTimer(self)
         self._chart_timer.setInterval(250)
@@ -145,6 +228,10 @@ class MainWindow(QMainWindow):
         self.state_label.setObjectName("state")
         form.addWidget(QLabel("State"), 11, 0)
         form.addWidget(self.state_label, 11, 1)
+        self.usb_state_label = QLabel("Disconnected")
+        self.usb_state_label.setObjectName("state")
+        form.addWidget(QLabel("USB State"), 12, 0)
+        form.addWidget(self.usb_state_label, 12, 1)
         self.progress = QProgressBar()
         self.progress.setMinimumHeight(40)  # Make progress indicator noticeably larger
         # Style progress bar: red chunk and thicker appearance
@@ -160,8 +247,8 @@ class MainWindow(QMainWindow):
                 border-radius: 3px;
             }
         """)
-        form.addWidget(self.progress, 12, 0, 1, 2)
-        form.setRowStretch(13, 1)
+        form.addWidget(self.progress, 13, 0, 1, 2)
+        form.setRowStretch(14, 1)
         body.addWidget(control, 0)
 
         tabs = QTabWidget()
@@ -182,12 +269,53 @@ class MainWindow(QMainWindow):
         tabs.addTab(self.smith_chart, "Smith Chart")
         troubleshoot_page = QWidget()
         troubleshoot_layout = QVBoxLayout(troubleshoot_page)
+        
+        # Create diagnostic buttons in a grid layout
+        diag_buttons_layout = QGridLayout()
         self.diagnostic_btn = QPushButton("Diagnostic")
+        self.backup_btn = QPushButton("Backup")
+        self.tlog_btn = QPushButton("tlog")
+        self.adv_diag_btn = QPushButton("Adv. Diag.")
+        self.button_a = QPushButton("A")
+        self.button_b = QPushButton("B")
+        
+        diag_buttons_layout.addWidget(self.diagnostic_btn, 0, 0)
+        diag_buttons_layout.addWidget(self.backup_btn, 0, 1)
+        diag_buttons_layout.addWidget(self.tlog_btn, 0, 2)
+        diag_buttons_layout.addWidget(self.adv_diag_btn, 1, 0)
+        diag_buttons_layout.addWidget(self.button_a, 1, 1)
+        diag_buttons_layout.addWidget(self.button_b, 1, 2)
+        
+        troubleshoot_layout.addLayout(diag_buttons_layout)
+        
+        # Split into Status (left) and Result (right)
+        content_layout = QHBoxLayout()
+        
+        # Status box (real-time messages)
+        status_container = QWidget()
+        status_layout = QVBoxLayout(status_container)
+        status_label = QLabel("Status")
+        status_label.setStyleSheet("font-weight: bold;")
+        status_layout.addWidget(status_label)
+        self.diagnostic_status = QPlainTextEdit()
+        self.diagnostic_status.setReadOnly(True)
+        self.diagnostic_status.setPlaceholderText("Real-time status messages from EVC will appear here.")
+        status_layout.addWidget(self.diagnostic_status, 1)
+        
+        # Result box (accumulated results with timestamps)
+        result_container = QWidget()
+        result_layout = QVBoxLayout(result_container)
+        result_label = QLabel("Result")
+        result_label.setStyleSheet("font-weight: bold;")
+        result_layout.addWidget(result_label)
         self.diagnostic_output = QPlainTextEdit()
         self.diagnostic_output.setReadOnly(True)
-        self.diagnostic_output.setPlaceholderText("Diagnostic results will appear here.")
-        troubleshoot_layout.addWidget(self.diagnostic_btn)
-        troubleshoot_layout.addWidget(self.diagnostic_output, 1)
+        self.diagnostic_output.setPlaceholderText("Diagnostic results with timestamps will accumulate here.")
+        result_layout.addWidget(self.diagnostic_output, 1)
+        
+        content_layout.addWidget(status_container, 1)
+        content_layout.addWidget(result_container, 1)
+        troubleshoot_layout.addLayout(content_layout, 1)
         tabs.addTab(troubleshoot_page, "Troubleshoot")
 
         self.refresh_btn.clicked.connect(self.refresh_ports)
@@ -196,6 +324,11 @@ class MainWindow(QMainWindow):
         self.smith_chart.contour_check.toggled.connect(self._on_contour_toggled)
         self.probe_btn.clicked.connect(self.probe)
         self.diagnostic_btn.clicked.connect(self.run_diagnostic)
+        self.backup_btn.clicked.connect(self.run_backup)
+        self.tlog_btn.clicked.connect(self.run_tlog)
+        self.adv_diag_btn.clicked.connect(self.run_adv_diagnostic)
+        self.button_a.clicked.connect(self.run_button_a)
+        self.button_b.clicked.connect(self.run_button_b)
         self.run_btn.clicked.connect(self.run_monitoring)
         self.abort_btn.clicked.connect(self.abort)
         self.exit_btn.clicked.connect(self.close)
@@ -218,6 +351,13 @@ class MainWindow(QMainWindow):
         self.activity.appendPlainText(text)
         self.status.setText(text)
         log.info(text)
+
+    def _update_usb_state_label(self):
+        if self.serial.connected:
+            port = self.port.currentText().strip() or "Unknown"
+            self.usb_state_label.setText(f"Connected ({port})")
+        else:
+            self.usb_state_label.setText("Disconnected")
 
     def refresh_ports(self):
         current = self.port.currentText()
@@ -298,6 +438,7 @@ class MainWindow(QMainWindow):
         # Connect to the selected port and baud rate
         result = self.serial.connect(device.port, device.baudrate)
         self.append(result.message)
+        self._update_usb_state_label()
         if not result.ok:
             self.machine.transition(AppState.ERROR, f"Connection failed: {result.message}")
             self.start_btn.setEnabled(True)
@@ -308,6 +449,7 @@ class MainWindow(QMainWindow):
         if not self._query_scan_identity(setup_device_log=False, fail_on_error=False):
             self.append("Identity validation failed")
             self.serial.disconnect()
+            self._update_usb_state_label()
             self.machine.transition(AppState.ERROR, "Identity validation failed")
             self.start_btn.setEnabled(True)
             self._update_controls_for_idle()
@@ -332,28 +474,248 @@ class MainWindow(QMainWindow):
     def probe(self):
         self.append(self.serial.probe().message)
 
+    def _start_diagnostic_job(self, kind: str, steps: list[DiagnosticCommand], start_message: str) -> bool:
+        if self._diagnostic_worker and self._diagnostic_worker.isRunning():
+            self.append("A diagnostic download is already running.")
+            return False
+        if not self.machine.transition(AppState.DOWNLOADING_DIAGNOSTIC, start_message):
+            return False
+        self._diagnostic_job_kind = kind
+        self._diagnostic_timestamp = datetime.now().strftime("%Y/%m/%d %H:%M")
+        self.diagnostic_status.setPlainText(start_message)
+        self.append(start_message)
+        self._update_controls_for_idle()
+        self.progress.setRange(0, 0)
+        self.progress.show()
+        self.abort_btn.setEnabled(True)
+        self._diagnostic_worker = DiagnosticJobWorker(self.serial, steps)
+        self._diagnostic_worker.progress.connect(self._on_diagnostic_progress)
+        self._diagnostic_worker.line_received.connect(self._on_diagnostic_line)
+        self._diagnostic_worker.job_finished.connect(self._on_diagnostic_job_finished)
+        self._diagnostic_worker.start()
+        return True
+
+    def _cancel_diagnostic_job(self):
+        worker = self._diagnostic_worker
+        if not worker:
+            return
+        worker.request_cancel()
+        worker.wait(3000)
+        if worker.isRunning():
+            log.warning("Diagnostic worker did not stop within the timeout")
+        self._diagnostic_worker = None
+        self._diagnostic_job_kind = None
+        self._diagnostic_timestamp = ""
+
+    @Slot(str)
+    def _on_diagnostic_progress(self, message: str):
+        self.append(message)
+
+    @Slot(str)
+    def _on_diagnostic_line(self, line: str):
+        if line:
+            self.diagnostic_status.appendPlainText(line)
+
+    def _result_for_key(self, result: DiagnosticJobResult, key: str) -> DiagnosticCommandResult | None:
+        return result.results.get(key)
+
+    @Slot(object)
+    def _on_diagnostic_job_finished(self, result):
+        worker = self.sender()
+        if worker is not self._diagnostic_worker:
+            return
+        kind = self._diagnostic_job_kind or "diagnostic"
+        timestamp = self._diagnostic_timestamp or datetime.now().strftime("%Y/%m/%d %H:%M")
+        diagnostic_worker = self._diagnostic_worker
+        try:
+            if diagnostic_worker:
+                diagnostic_worker.line_received.disconnect(self._on_diagnostic_line)
+        except (RuntimeError, TypeError, AttributeError):
+            pass
+        self._diagnostic_worker = None
+        self._diagnostic_job_kind = None
+        self._diagnostic_timestamp = ""
+        self.progress.setRange(0, 100)
+        self.progress.setValue(0)
+        try:
+            if kind == "diagnostic":
+                self._handle_stat_result(timestamp, result)
+            elif kind == "backup":
+                self._handle_backup_result(timestamp, result)
+            elif kind == "tlog":
+                self._handle_tlog_result(timestamp, result)
+            elif kind == "adv_diag":
+                self._handle_advanced_diagnostic_result(timestamp, result)
+            else:
+                self.append(f"Unexpected diagnostic job kind: {kind}")
+        finally:
+            if self.machine.state == AppState.DOWNLOADING_DIAGNOSTIC:
+                if result.ok:
+                    reason = f"{kind} complete"
+                elif result.message == "Diagnostic download cancelled":
+                    reason = f"{kind} cancelled"
+                else:
+                    reason = f"{kind} complete with error"
+                self.machine.transition(AppState.IDLE, reason)
+            self._update_controls_for_idle()
+
+    def _handle_stat_result(self, timestamp: str, result: DiagnosticJobResult):
+        stat_result = self._result_for_key(result, "stat")
+        if not stat_result:
+            output = self._append_result(f"{timestamp} Diagnostic: No response")
+            self.diagnostic_output.setPlainText(output)
+            self.append("Diagnostic failed: no response")
+            return
+        self.diagnostic_status.setPlainText(stat_result.response)
+        if not stat_result.ok:
+            output = self._append_result(f"{timestamp} Diagnostic: Command failed - {stat_result.message}")
+            self.diagnostic_output.setPlainText(output)
+            self.append(f"Diagnostic failed: {stat_result.message}")
+            return
+        faults = self._extract_active_faults(stat_result.response)
+        if not faults:
+            output = self._append_result(f"{timestamp} Diagnostic: No active faults or alarms detected.")
+            self.diagnostic_output.setPlainText(output)
+            self.append("Diagnostic complete: no active faults found")
+            return
+        lines = [f"{timestamp} Diagnostic:"]
+        lines.append("Active faults detected:")
+        for code, description in faults:
+            fault_description = TYKON_FAULT_EXPLANATIONS.get(code, description)
+            lines.append(f"  {code} -- {fault_description}")
+        output = self._append_result("\n".join(lines))
+        self.diagnostic_output.setPlainText(output)
+        self.append("Diagnostic complete: active faults detected")
+
+    def _handle_backup_result(self, timestamp: str, result: DiagnosticJobResult):
+        backup_result = self._result_for_key(result, "back")
+        if not backup_result:
+            output = self._append_result(f"{timestamp} Backup: No response")
+            self.diagnostic_output.setPlainText(output)
+            self.append("Backup failed: no response")
+            return
+        self.diagnostic_status.setPlainText(backup_result.response)
+        if not backup_result.ok:
+            output = self._append_result(f"{timestamp} Backup: Command failed - {backup_result.message}")
+            self.diagnostic_output.setPlainText(output)
+            self.append(f"Backup failed: {backup_result.message}")
+            return
+        if self._is_invalid_command_response(backup_result.response):
+            output = self._append_result(f"{timestamp} Backup: Unsupported on this EVC (Invalid Command).")
+            self.diagnostic_output.setPlainText(output)
+            self.append("Backup unavailable: EVC responded 'Invalid Command'")
+            return
+        sn = self.detected_serial_number or "UNKNOWN"
+        now = datetime.now()
+        datecode = now.strftime("%Y%m%d")
+        timecode = now.strftime("%H%M")
+        filename = f"{sn}Tykon_GUI_{datecode}_{timecode}_back.txt"
+        log_dir = self.log_file.parent if self.log_file else Path.cwd()
+        log_dir.mkdir(parents=True, exist_ok=True)
+        backup_path = log_dir / filename
+        try:
+            backup_path.write_text(backup_result.response, encoding="utf-8")
+            output = self._append_result(f"{timestamp} Backup: Downloaded successfully.\nSaved to: {backup_path}")
+            self.diagnostic_output.setPlainText(output)
+            self.append(f"Backup complete: saved to {backup_path}")
+        except Exception as e:
+            output = self._append_result(f"{timestamp} Backup: Failed to save - {e}")
+            self.diagnostic_output.setPlainText(output)
+            self.append(f"Backup save failed: {e}")
+
+    def _handle_tlog_result(self, timestamp: str, result: DiagnosticJobResult):
+        tlog_result = self._result_for_key(result, "tlog")
+        if not tlog_result:
+            output = self._append_result(f"{timestamp} tlog: No response")
+            self.diagnostic_output.setPlainText(output)
+            self.append("Time log failed: no response")
+            return
+        self.diagnostic_status.setPlainText(tlog_result.response)
+        if not tlog_result.ok:
+            output = self._append_result(f"{timestamp} tlog: Command failed - {tlog_result.message}")
+            self.diagnostic_output.setPlainText(output)
+            self.append(f"Time log failed: {tlog_result.message}")
+            return
+        if "The log is empty" in tlog_result.response:
+            output = self._append_result(f"{timestamp} tlog: Empty (no data in buffer)")
+            self.diagnostic_output.setPlainText(output)
+            self.append("Time log download complete: log is empty")
+            return
+        sn = self.detected_serial_number or "UNKNOWN"
+        now = datetime.now()
+        datecode = now.strftime("%Y%m%d")
+        timecode = now.strftime("%H%M")
+        filename = f"{sn}Tykon_GUI_{datecode}_{timecode}_tlog.txt"
+        log_dir = self.log_file.parent if self.log_file else Path.cwd()
+        log_dir.mkdir(parents=True, exist_ok=True)
+        tlog_path = log_dir / filename
+        try:
+            tlog_path.write_text(tlog_result.response, encoding="utf-8")
+            output = self._append_result(f"{timestamp} tlog: Downloaded successfully.\nSaved to: {tlog_path}")
+            self.diagnostic_output.setPlainText(output)
+            self.append(f"Time log complete: saved to {tlog_path}")
+        except Exception as e:
+            output = self._append_result(f"{timestamp} tlog: Failed to save - {e}")
+            self.diagnostic_output.setPlainText(output)
+            self.append(f"Time log save failed: {e}")
+
+    def _handle_advanced_diagnostic_result(self, timestamp: str, result: DiagnosticJobResult):
+        stat_result = self._result_for_key(result, "stat")
+        backup_result = self._result_for_key(result, "back")
+        diag_output: list[str] = []
+        if stat_result and stat_result.ok:
+            self.diagnostic_status.setPlainText(stat_result.response)
+            faults = self._extract_active_faults(stat_result.response)
+            if faults:
+                diag_output.append("Active faults detected:")
+                for code, description in faults:
+                    fault_description = TYKON_FAULT_EXPLANATIONS.get(code, description)
+                    diag_output.append(f"  {code} -- {fault_description}")
+            else:
+                diag_output.append("No active faults or alarms detected.")
+        elif stat_result:
+            self.diagnostic_status.setPlainText(stat_result.response)
+            diag_output.append(f"Diagnostic command failed: {stat_result.message}")
+        else:
+            diag_output.append("Diagnostic command failed: no response")
+        if not backup_result:
+            output = self._append_result(f"{timestamp} Adv. Diag.: Failed to download backup - no response")
+            self.diagnostic_output.setPlainText(output)
+            self.append("Advanced diagnostic: backup download failed")
+            return
+        self.diagnostic_status.setPlainText(backup_result.response)
+        if not backup_result.ok:
+            output = self._append_result(f"{timestamp} Adv. Diag.: Failed to download backup - {backup_result.message}")
+            self.diagnostic_output.setPlainText(output)
+            self.append("Advanced diagnostic: backup download failed")
+            return
+        if self._is_invalid_command_response(backup_result.response):
+            output = self._append_result(
+                f"{timestamp} Adv. Diag.: Backup unsupported on this EVC (Invalid Command)."
+            )
+            self.diagnostic_output.setPlainText(output)
+            self.append("Advanced diagnostic: backup unavailable (Invalid Command)")
+            return
+        accu_info = self._extract_accumulator_info(backup_result.response)
+        result_lines = [f"{timestamp} Adv. Diag.:"] + diag_output
+        if accu_info:
+            result_lines.append("\n=== Accumulated Information ===")
+            result_lines.extend(accu_info.split('\n'))
+        output = self._append_result("\n".join(result_lines))
+        self.diagnostic_output.setPlainText(output)
+        self.append("Advanced diagnostic complete")
+
     def run_diagnostic(self):
         if not self.serial.connected:
             message = "Diagnostic unavailable: connect to an EVC first."
-            self.diagnostic_output.setPlainText(message)
+            self.diagnostic_status.setPlainText(message)
             self.append(message)
             return
-        result = self.serial.send_command("stat", timeout=2.0)
-        if not result.ok:
-            self.diagnostic_output.setPlainText(f"Diagnostic command failed.\n{result.message}")
-            self.append(f"Diagnostic failed: {result.message}")
-            return
-        faults = self._extract_active_faults(result.response)
-        if not faults:
-            self.diagnostic_output.setPlainText("No active faults or alarms detected.")
-            self.append("Diagnostic complete: no active faults found")
-            return
-        lines = ["Active faults detected:"]
-        for code, description in faults:
-            fault_description = TYKON_FAULT_EXPLANATIONS.get(code, description)
-            lines.append(f"{code} -- {fault_description}")
-        self.diagnostic_output.setPlainText("\n".join(lines))
-        self.append("Diagnostic complete: active faults detected")
+        self._start_diagnostic_job(
+            "diagnostic",
+            [DiagnosticCommand("stat", "stat", 2.0)],
+            "Downloading diagnostic data...",
+        )
 
     @staticmethod
     def _extract_active_faults(response: str) -> list[tuple[str, str]]:
@@ -379,6 +741,126 @@ class MainWindow(QMainWindow):
             elif faults:
                 break
         return faults
+
+    @staticmethod
+    def _is_invalid_command_response(response: str) -> bool:
+        return "invalid command" in response.lower()
+
+    def run_backup(self):
+        """Download backup file from EVC"""
+        if not self.serial.connected:
+            message = "Backup unavailable: connect to an EVC first."
+            self.diagnostic_status.setPlainText(message)
+            self.append(message)
+            return
+        self._start_diagnostic_job(
+            "backup",
+            [DiagnosticCommand("back", "back", 120.0, BACKUP_END_MARKERS, "\r")],
+            "Starting backup download (waiting for 'Printed from : EVC')...",
+        )
+
+    def run_tlog(self):
+        """Download time log from EVC with end marker detection"""
+        if not self.serial.connected:
+            message = "Time log unavailable: connect to an EVC first."
+            self.diagnostic_status.setPlainText(message)
+            self.append(message)
+            return
+        is_chronos1 = self._is_chronos_family() and self._is_chronos_legacy_unit()
+        timeout_seconds = 120.0 if is_chronos1 else 120.0
+        device_note = "Chronos 1" if is_chronos1 else "other devices"
+        self._start_diagnostic_job(
+            "tlog",
+            [DiagnosticCommand("tlog", "tlog", timeout_seconds, ("Printed from : EVC",), "\r")],
+            f"Starting time log download ({device_note}, waiting for 'Printed from : EVC')...",
+        )
+
+    def run_adv_diagnostic(self):
+        """Advanced diagnostic: read backup file and extract accumulator info"""
+        if not self.serial.connected:
+            message = "Advanced diagnostic unavailable: connect to an EVC first."
+            self.diagnostic_status.setPlainText(message)
+            self.append(message)
+            return
+        self._start_diagnostic_job(
+            "adv_diag",
+            [
+               DiagnosticCommand("stat", "stat", 2.0),
+               DiagnosticCommand("back", "back", 120.0, BACKUP_END_MARKERS, "\r"),
+            ],
+            "Starting advanced diagnostic (downloading backup and extracting accumulator info)...",
+        )
+
+    def _append_result(self, new_content: str) -> str:
+        """Append new timestamped result to existing results without erasing"""
+        current = self.diagnostic_output.toPlainText()
+        if current and not current.endswith('\n\n'):
+            output = current + "\n\n" + new_content
+        else:
+            output = current + "\n" + new_content if current else new_content
+        return output
+
+    def _save_result_text(self):
+        output = self.diagnostic_output.toPlainText().strip()
+        if not output:
+            return
+        sn = self.detected_serial_number or "UNKNOWN"
+        now = datetime.now()
+        datecode = now.strftime("%Y%m%d")
+        timecode = now.strftime("%H%M%S")
+        filename = f"{sn}Tykon_GUI_{datecode}_{timecode}_result.txt"
+        log_dir = self.log_file.parent if self.log_file else Path.cwd()
+        log_dir.mkdir(parents=True, exist_ok=True)
+        result_path = log_dir / filename
+        try:
+            result_path.write_text(output, encoding="utf-8")
+        except Exception as exc:
+            log.warning("Failed to save result text file: %s", exc)
+
+    @staticmethod
+    def _extract_accumulator_info(response: str) -> str:
+        """Extract accumulator information from backup response"""
+        lines = response.splitlines()
+        accu_lines = []
+        in_accu_section = False
+        
+        for i, raw_line in enumerate(lines):
+            line = raw_line.strip()
+            
+            # Start collecting when we find "Flash Write count"
+            if "Flash Write count" in line:
+               in_accu_section = True
+               accu_lines.append(line)
+               continue
+            
+            if not in_accu_section:
+               continue
+            
+            # Stop collecting after "DNet Lost Comm"
+            if "DNet Lost Comm" in line:
+               accu_lines.append(line)
+               break
+            
+            # Add lines within the accumulator section
+            if in_accu_section:
+               if line and not line.endswith(">"):
+                   accu_lines.append(line)
+        
+        return "\n".join(accu_lines) if accu_lines else ""
+
+    def run_button_a(self):
+        """Placeholder for button A - reserved for tlog2chart in future"""
+        timestamp = datetime.now().strftime("%Y/%m/%d %H:%M")
+        output = self._append_result(f"{timestamp} Button A: Not yet implemented (reserved for tlog2chart)")
+        self.diagnostic_output.setPlainText(output)
+        self.append("Button A: Not yet implemented")
+
+    def run_button_b(self):
+        """Placeholder for button B - reserved for Palantir in future"""
+        timestamp = datetime.now().strftime("%Y/%m/%d %H:%M")
+        output = self._append_result(f"{timestamp} Button B: Not yet implemented (reserved for Palantir)")
+        self.diagnostic_output.setPlainText(output)
+        self.append("Button B: Not yet implemented")
 
     def run_monitoring(self):
         demo_mode = self.demo_mode_check.isChecked()
@@ -415,6 +897,13 @@ class MainWindow(QMainWindow):
         self.probe_btn.setEnabled(False)
         self.start_btn.setEnabled(False)
         self.demo_mode_check.setEnabled(False)
+        # Disable diagnostic buttons during run
+        self.diagnostic_btn.setEnabled(False)
+        self.backup_btn.setEnabled(False)
+        self.tlog_btn.setEnabled(False)
+        self.adv_diag_btn.setEnabled(False)
+        self.button_a.setEnabled(False)
+        self.button_b.setEnabled(False)
         if self.smith_chart.contour_check.isChecked():
             self.smith_chart.show_contour(True)
         self._start_phase2_pipeline(demo_mode=demo_mode)
@@ -424,6 +913,17 @@ class MainWindow(QMainWindow):
             self.append("RUN entered. Querying pdat1 + psum1 and updating Power Scope.")
 
     def abort(self):
+        if self._diagnostic_worker and self._diagnostic_worker.isRunning():
+            self._cancel_diagnostic_job()
+            self.diagnostic_status.setPlainText("Diagnostic download cancelled.")
+            self.append("Diagnostic download cancelled")
+            self.progress.setRange(0, 100)
+            self.progress.setValue(0)
+            self.abort_btn.setEnabled(False)
+            if self.machine.state == AppState.DOWNLOADING_DIAGNOSTIC:
+                self.machine.transition(AppState.IDLE, "Diagnostic cancelled")
+            self._update_controls_for_idle()
+            return
         self._stop_phase2_pipeline()
         self.smith_chart.set_demo_mode(self.demo_mode_check.isChecked())
         if self.machine.state == AppState.RUN:
@@ -432,6 +932,14 @@ class MainWindow(QMainWindow):
         self.progress.setValue(0)
         self.abort_btn.setEnabled(False)
         self.demo_mode_check.setEnabled(True)
+        # Enable diagnostic buttons after abort
+        if self.serial.connected:
+            self.diagnostic_btn.setEnabled(True)
+            self.backup_btn.setEnabled(True)
+            self.tlog_btn.setEnabled(True)
+            self.adv_diag_btn.setEnabled(True)
+            self.button_a.setEnabled(True)
+            self.button_b.setEnabled(True)
         self.smith_chart.show_contour(self.smith_chart.contour_check.isChecked())
         self._update_controls_for_idle()
         self.append("Run aborted safely")
@@ -472,8 +980,10 @@ class MainWindow(QMainWindow):
             return False
         time.sleep(POST_SWITCH_SETTLE_S)
         self.serial.disconnect()
+        self._update_usb_state_label()
         reconnect = self.serial.connect(self.port.currentText(), HIGH_SPEED_BAUD, timeout=HANDSHAKE_TIMEOUT_S)
         self.append(reconnect.message)
+        self._update_usb_state_label()
         if not reconnect.ok:
             self.machine.transition(AppState.ERROR, reconnect.message)
             return False
@@ -686,6 +1196,7 @@ class MainWindow(QMainWindow):
         self._load_and_plot_contour(show_after_load=self.smith_chart.contour_check.isChecked())
 
     def _update_controls_for_idle(self):
+        self._update_usb_state_label()
         demo_mode = self.demo_mode_check.isChecked()
         if self.machine.state == AppState.RUN:
             return
@@ -693,8 +1204,31 @@ class MainWindow(QMainWindow):
             self.run_btn.setEnabled(False)
             self.probe_btn.setEnabled(False)
             return
+        if self.machine.state == AppState.DOWNLOADING_DIAGNOSTIC:
+            self.start_btn.setEnabled(False)
+            self.refresh_btn.setEnabled(False)
+            self.port.setEnabled(False)
+            self.baud.setEnabled(False)
+            self.demo_mode_check.setEnabled(False)
+            self.run_btn.setEnabled(False)
+            self.probe_btn.setEnabled(False)
+            self.diagnostic_btn.setEnabled(False)
+            self.backup_btn.setEnabled(False)
+            self.tlog_btn.setEnabled(False)
+            self.adv_diag_btn.setEnabled(False)
+            self.button_a.setEnabled(False)
+            self.button_b.setEnabled(False)
+            return
         self.run_btn.setEnabled(demo_mode or self.serial.connected)
         self.probe_btn.setEnabled(self.serial.connected and not demo_mode)
+        # Enable diagnostic buttons when connected
+        connected = self.serial.connected
+        self.diagnostic_btn.setEnabled(connected)
+        self.backup_btn.setEnabled(connected)
+        self.tlog_btn.setEnabled(connected)
+        self.adv_diag_btn.setEnabled(connected)
+        self.button_a.setEnabled(connected)
+        self.button_b.setEnabled(connected)
     
     def _cap_grid_limits(self) -> tuple[int, int]:
         """Return (max_coarse, max_fine) for the connected product family."""
@@ -949,10 +1483,21 @@ class MainWindow(QMainWindow):
     def _query_and_parse_zpar(self, cmd: str) -> ZParameters | None:
         """Query device for Z-parameter and parse response."""
         try:
-            result = self.serial.send_command(cmd)
-            if not result.ok:
+            result = self.serial.send_command(
+                cmd,
+                timeout=ZPAR_COMMAND_TIMEOUT_S,
+                read_timeout=ZPAR_READ_TIMEOUT_S,
+                payload_quiet_period_s=ZPAR_PAYLOAD_QUIET_S,
+            )
+            if result.ok:
+                parsed = self._parse_zpar_response(result.response)
+                if parsed:
+                    return parsed
+            # Fallback to the original command strategy if the fast path fails.
+            fallback = self.serial.send_command(cmd)
+            if not fallback.ok:
                 return None
-            return self._parse_zpar_response(result.response)
+            return self._parse_zpar_response(fallback.response)
         except Exception:
             return None
     
@@ -998,16 +1543,20 @@ class MainWindow(QMainWindow):
     @Slot(object, object, str)
     def on_state_changed(self, source, target, reason):
         self.state_label.setText(target.name)
+        self._update_usb_state_label()
         self.append(f"{source.name} -> {target.name}: {reason}")
 
     def closeEvent(self, event):
         try:
+            self._save_result_text()
             self._stop_phase2_pipeline()
+            self._cancel_diagnostic_job()
             if self.machine.state not in (AppState.IDLE, AppState.ERROR, AppState.CLEANUP, AppState.EXIT):
                 self.machine.transition(AppState.IDLE, "Close requested")
             if self.machine.state in (AppState.IDLE, AppState.ERROR):
                 self.machine.transition(AppState.CLEANUP, "Application closing")
             self.serial.disconnect()
+            self._update_usb_state_label()
             if self.machine.state == AppState.CLEANUP:
                 self.machine.transition(AppState.EXIT, "Cleanup complete")
             event.accept()

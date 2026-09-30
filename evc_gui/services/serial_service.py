@@ -1,5 +1,7 @@
 import logging
+import threading
 from dataclasses import dataclass
+from typing import Callable
 import time
 import serial
 from serial.tools import list_ports
@@ -67,7 +69,17 @@ class SerialService:
             log.exception("Serial probe failed")
             return ConnectionResult(False, f"Probe failed: {exc}")
 
-    def send_command(self, command: str, timeout: float = 1.0) -> CommandResult:
+    def send_command(
+        self,
+        command: str,
+        timeout: float = 1.0,
+        cancel_event: threading.Event | None = None,
+        end_markers: tuple[str, ...] = (),
+        line_callback: Callable[[str], None] | None = None,
+        read_timeout: float | None = None,
+        payload_quiet_period_s: float | None = None,
+        line_ending: str = "\r\n",
+    ) -> CommandResult:
         if not self.connected:
             return CommandResult(False, "Serial port is not connected", "")
         command = command.strip()
@@ -77,14 +89,27 @@ class SerialService:
         deadline = time.monotonic() + timeout
         lines: list[str] = []
         seen_payload = False
+        last_payload_at: float | None = None
         try:
             self._serial.reset_input_buffer()
-            self._serial.write(f"{command}\r\n".encode("ascii", errors="ignore"))
+            self._serial.write(f"{command}{line_ending}".encode("ascii", errors="ignore"))
             self._serial.flush()
-            self._serial.timeout = min(0.1, max(0.01, timeout / 2))
+            if read_timeout is None:
+                self._serial.timeout = min(0.1, max(0.01, timeout / 2))
+            else:
+                self._serial.timeout = max(0.005, min(float(read_timeout), timeout))
             while time.monotonic() < deadline:
+                if cancel_event is not None and cancel_event.is_set():
+                    return CommandResult(False, f"Command '{command}' cancelled", "\n".join(lines))
                 raw = self._serial.readline()
                 if not raw:
+                    if (
+                        seen_payload
+                        and payload_quiet_period_s is not None
+                        and last_payload_at is not None
+                        and (time.monotonic() - last_payload_at) >= payload_quiet_period_s
+                    ):
+                        break
                     continue
                 line = raw.decode(errors="replace").strip()
                 if not line:
@@ -94,10 +119,18 @@ class SerialService:
                 if prompt_only and not seen_payload:
                     continue
                 lines.append(line)
+                if line_callback is not None:
+                    line_callback(line)
+                if end_markers and any(marker.lower() in line.lower() for marker in end_markers):
+                    response = "\n".join(lines)
+                    msg = f"Command '{command}' response received (end marker)"
+                    log.info(msg)
+                    return CommandResult(True, msg, response)
                 if prompt_only:
                     break
                 if line.lower() != command.lower():
                     seen_payload = True
+                    last_payload_at = time.monotonic()
             response = "\n".join(lines)
             if not lines:
                 return CommandResult(False, f"No response for '{command}'", "")

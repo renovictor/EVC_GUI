@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import csv
 import logging
+import math
 import queue
 import re
 import threading
@@ -322,16 +323,21 @@ class SerialWorker(QThread):
             self.msleep(self._poll_interval_ms)
 
     def _build_demo_sample(self) -> tuple[EvcSample, str, str]:
-        elapsed_s = (self._demo_tick * self._poll_interval_ms) // 1000
+        elapsed_s = (self._demo_tick * self._poll_interval_ms) / 1000.0
         self._demo_tick += 1
-        pfwd = float((elapsed_s // 10) % 10) * 100.0
-        pref = float((elapsed_s // 9) % 5)
-        c1 = float((elapsed_s // 10) % 10) * 10.0
-        c2 = float((elapsed_s // 5) % 20) * 4.0
-        vpp = float((elapsed_s // 10) % 10) * 50.0
-        dc_bias = -50.0 + (float((elapsed_s // 10) % 10) * 10.0)
+
+        # Continuous waveforms keep demo logs non-zero and visibly dynamic from run start.
+        pfwd = 420.0 + 260.0 * math.sin(elapsed_s * 0.9) + 90.0 * math.sin(elapsed_s * 0.21)
+        pfwd = max(20.0, pfwd)
+        pref = max(1.0, (pfwd * 0.07) + 9.0 * math.sin(elapsed_s * 1.4))
+        c1 = max(0.0, min(100.0, 48.0 + 30.0 * math.sin(elapsed_s * 0.35)))
+        c2 = max(0.0, min(100.0, 52.0 + 34.0 * math.cos(elapsed_s * 0.27)))
+        vpp = max(80.0, 520.0 + 140.0 * math.sin(elapsed_s * 0.5))
+        dc_bias = -58.0 + 18.0 * math.sin(elapsed_s * 0.31)
         pout = max(0.0, pfwd - pref)
         iout = (pout / vpp) if vpp > 0 else 0.0
+        rs = 0.6 + 0.18 * math.sin(elapsed_s * 0.42)
+        xs = 45.0 + 12.0 * math.cos(elapsed_s * 0.37)
         sample = EvcSample(
             timestamp=datetime.now(),
             pfwd=pfwd,
@@ -342,12 +348,12 @@ class SerialWorker(QThread):
             dc_bias=dc_bias,
             pout=pout,
             iout=iout,
-            rs=0.54,
-            xs=50.0,
+            rs=rs,
+            xs=xs,
         )
-        pdat_line = f"F1 : {pfwd:6.0f} {pref:4.0f} 0.10 -14.44 0.54 50.00 {c1:5.1f} {c2:5.1f}"
+        pdat_line = f"F1 : {pfwd:6.1f} {pref:5.1f} 0.10 -14.44 {rs:4.2f} {xs:5.2f} {c1:5.1f} {c2:5.1f}"
         psum_line = (
-            f"0.00 0.00 0.00 89.38 0.54 50.00 0.10 -14.44 6 63 6 63 "
+            f"0.00 0.00 0.00 89.38 {rs:4.2f} {xs:5.2f} 0.10 -14.44 6 63 6 63 "
             f"{c1:4.1f}% {c2:4.1f}% {vpp:6.3f} 0.000 0.00 -4.90 0.00 {iout:5.2f} 0.00 {pout:6.2f} 0.0% | "
             f"1200.00 {dc_bias:7.2f} HI -50.00 -50.00"
         )

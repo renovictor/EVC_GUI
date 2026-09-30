@@ -1,6 +1,6 @@
 """Single source of truth for EVC GUI version information."""
 APP_NAME = "EVC GUI"
-__version__ = "26.0.2"
+__version__ = "26.0.5"
 VERSION = tuple(int(part) for part in __version__.split("."))
 COMPANY = "ASM"
 DEPARTMENT = "PEALD RF Engineering"
@@ -8,6 +8,21 @@ AUTHOR = "Victor Huang"
 CONTACT = "victor.huang@asm.com"
 
 VERSION_HISTORY = [
+    {
+        "version": "26.0.5",
+        "date": "2026-09-30",
+        "summary": "Performance and diagnostics update: accelerated contour zpar download, robust backup/tlog completion and unsupported-command handling, USB connection-state display, result export on app exit, and improved non-zero demo logging for raw CSV validation.",
+    },
+    {
+        "version": "26.0.4",
+        "date": "2026-09-29",
+        "summary": "Diagnostic streaming fix: background tlog download with line-by-line status updates, end-marker detection on 'Printed from : EVC', and responsive UI behavior during long serial reads.",
+    },
+    {
+        "version": "26.0.3",
+        "date": "2026-09-28",
+        "summary": "Diagnostic UI enhancement: 6-button system (Diagnostic, Backup, tlog, Adv. Diag., A, B) with split Status/Result textboxes, real-time streaming layout, device-specific timeouts (5m Chronos 1, 40m Tykon), accumulator info extraction, and timestamped result history.",
+    },
     {
         "version": "26.0.2",
         "date": "2026-09-28",
