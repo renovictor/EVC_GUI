@@ -1,6 +1,6 @@
 """Single source of truth for EVC GUI version information."""
 APP_NAME = "EVC GUI"
-__version__ = "26.0.7"
+__version__ = "26.0.9"
 VERSION = tuple(int(part) for part in __version__.split("."))
 COMPANY = "ASM"
 DEPARTMENT = "PEALD RF Engineering"
@@ -8,6 +8,16 @@ AUTHOR = "Victor Huang"
 CONTACT = "victor.huang@asm.com"
 
 VERSION_HISTORY = [
+    {
+        "version": "26.0.9",
+        "date": "2026-10-06",
+        "summary": "Advanced diagnostic and device scan refinement: Adv. Diag. now keeps the backup step even when the stat command fails, strips the noisy CapSwitch table from the accumulated summary, adds a cached in-memory backup fast path, and keeps the EVC selection dialog background green while deduplicating scan results by COM port.",
+    },
+    {
+        "version": "26.0.8",
+        "date": "2026-09-30",
+        "summary": "Triton release hardening: baud-switch recovery now handles COM port re-enumeration after baud changes, retries reconnect/verification across candidate ports, keeps USB state synced with the active port, and preserves low-speed fallback when high-speed validation is unavailable.",
+    },
     {
         "version": "26.0.7",
         "date": "2026-09-30",

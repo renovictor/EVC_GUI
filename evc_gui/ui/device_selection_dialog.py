@@ -23,6 +23,7 @@ class DeviceSelectionDialog(QDialog):
     
     def __init__(self, devices: list[DetectedDevice], parent=None):
         super().__init__(parent)
+        self.setObjectName("deviceSelectionDialog")
         self.devices = devices
         self.selected_device: Optional[DetectedDevice] = None
         self.use_manual: bool = False
@@ -30,14 +31,14 @@ class DeviceSelectionDialog(QDialog):
         self.setMinimumWidth(950)  # Wider to accommodate expanded columns
         self.setMinimumHeight(450)
         self.setModal(True)
-        # Apply dark theme styling to dialog
+        # Apply dialog styling
         self.setStyleSheet("""
-            QDialog {
-                background-color: #0e1830;
-                color: #eaf1ff;
+            QDialog#deviceSelectionDialog {
+                background-color: #90ee90;
+                color: #0a1b1d;
             }
             QLabel {
-                color: #eaf1ff;
+                color: #0a1b1d;
             }
             QPushButton {
                 background-color: #2463a8;
@@ -80,12 +81,12 @@ class DeviceSelectionDialog(QDialog):
             QTableWidget {
                 background-color: #172542;
                 alternate-background-color: #1a2d4a;
-                color: #000000;
+                color: #ffffff;
                 gridline-color: #47648f;
             }
             QTableWidget::item {
                 padding: 4px;
-                color: #000000;
+                color: #ffffff;
             }
             QTableWidget::item:selected {
                 background-color: #ff1493;
@@ -100,6 +101,7 @@ class DeviceSelectionDialog(QDialog):
             }
         """
         self.table.setStyleSheet(table_style)
+        self.table.setAlternatingRowColors(False)
         
         for row, device in enumerate(self.devices):
             self.table.insertRow(row)

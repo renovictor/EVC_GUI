@@ -1,7 +1,10 @@
 import csv
 import cmath
+import json
 import logging
 import math
+import shutil
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -30,7 +33,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from evc_gui.logging_config import configure_logging
+from evc_gui.logging_config import configure_logging, runtime_dir
 from evc_gui.services.phase2 import DataController, SerialWorker
 from evc_gui.services.serial_service import SerialService
 from evc_gui.services.port_scanner import PortScanner
@@ -93,6 +96,8 @@ TYKON_FAULT_EXPLANATIONS = {
     "43": "DC Fault (DC PS Setup/Comm)",
 }
 BACKUP_END_MARKERS = ("Printed from : EVC", "Printed from: EVC")
+TLOG2CHART_HANDSHAKE_TIMEOUT_S = 15.0
+TLOG2CHART_ANALYSIS_TIMEOUT_S = 300.0
 
 
 # Signal emitter for thread-safe scanning completion
@@ -127,16 +132,25 @@ class DiagnosticJobResult:
     results: dict[str, DiagnosticCommandResult]
 
 
+@dataclass(frozen=True)
+class Tlog2ChartResult:
+    ok: bool
+    message: str
+    report_path: str = ""
+    status_text: str = ""
+
+
 class DiagnosticJobWorker(QThread):
     progress = Signal(str)
     line_received = Signal(str)
     job_finished = Signal(object)
 
-    def __init__(self, serial: SerialService, steps: list[DiagnosticCommand]):
+    def __init__(self, serial: SerialService, steps: list[DiagnosticCommand], continue_on_failure_keys: tuple[str, ...] = ()):
         super().__init__()
         self._serial = serial
         self._steps = steps
         self._cancelled = threading.Event()
+        self._continue_on_failure_keys = set(continue_on_failure_keys)
 
     def request_cancel(self):
         self._cancelled.set()
@@ -194,6 +208,9 @@ class DiagnosticJobWorker(QThread):
                 )
                 results[step.key] = step_result
                 if not result.ok:
+                    if step.key in self._continue_on_failure_keys:
+                        self.progress.emit(f"{step.command} failed but continuing because this step is optional: {result_message}")
+                        continue
                     message = "Diagnostic download cancelled" if self._cancelled.is_set() else result_message
                     self.job_finished.emit(DiagnosticJobResult(False, message, results))
                     return
@@ -201,6 +218,141 @@ class DiagnosticJobWorker(QThread):
         except Exception as exc:
             log.exception("Diagnostic worker failed")
             self.job_finished.emit(DiagnosticJobResult(False, f"Diagnostic download failed: {exc}", results))
+
+
+class Tlog2ChartWorker(QThread):
+    progress = Signal(str)
+    job_finished = Signal(object)
+
+    def __init__(self, executable: Path, tlog_path: Path, output_dir: Path):
+        super().__init__()
+        self._executable = executable
+        self._tlog_path = tlog_path
+        self._output_dir = output_dir
+        self._cancelled = threading.Event()
+
+    def request_cancel(self):
+        self._cancelled.set()
+
+    def run(self):
+        try:
+            self.progress.emit("tlog2chart: launching handshake...")
+            handshake_result = self._run_command(
+                [str(self._executable), "--handshake", "--json"],
+                timeout_s=TLOG2CHART_HANDSHAKE_TIMEOUT_S,
+            )
+            if not handshake_result.ok:
+                self.job_finished.emit(handshake_result)
+                return
+
+            self.progress.emit("tlog2chart: handshake OK. Submitting tlog for analysis...")
+            self._output_dir.mkdir(parents=True, exist_ok=True)
+            analysis_result = self._run_command(
+                [
+                    str(self._executable),
+                    "--input",
+                    str(self._tlog_path),
+                    "--output-dir",
+                    str(self._output_dir),
+                    "--json",
+                ],
+                timeout_s=TLOG2CHART_ANALYSIS_TIMEOUT_S,
+            )
+            if analysis_result.ok and not analysis_result.report_path:
+                analysis_result = Tlog2ChartResult(
+                    False,
+                    "tlog2chart completed but did not return analysis report path",
+                )
+            self.job_finished.emit(analysis_result)
+        except Exception as exc:
+            log.exception("tlog2chart worker failed")
+            self.job_finished.emit(Tlog2ChartResult(False, f"tlog2chart integration failed: {exc}"))
+
+    def _run_command(self, args: list[str], timeout_s: float) -> Tlog2ChartResult:
+        started_at = time.monotonic()
+        process = subprocess.Popen(
+            args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        while process.poll() is None:
+            if self._cancelled.is_set():
+                process.terminate()
+                try:
+                    process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=2)
+                return Tlog2ChartResult(False, "tlog2chart operation cancelled")
+            if (time.monotonic() - started_at) >= timeout_s:
+                process.terminate()
+                try:
+                    process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=2)
+                return Tlog2ChartResult(False, f"tlog2chart timeout after {int(timeout_s)}s")
+            time.sleep(0.1)
+
+        stdout, stderr = process.communicate()
+        parsed = self._parse_tlog2chart_output(stdout=stdout, stderr=stderr, return_code=process.returncode)
+        if parsed.ok and parsed.report_path:
+            report_path = Path(parsed.report_path)
+            if not report_path.exists():
+                return Tlog2ChartResult(False, f"tlog2chart returned missing report path: {report_path}")
+        return parsed
+
+    @staticmethod
+    def _parse_tlog2chart_output(stdout: str, stderr: str, return_code: int) -> Tlog2ChartResult:
+        stdout_text = (stdout or "").strip()
+        stderr_text = (stderr or "").strip()
+        if return_code != 0:
+            details = stderr_text or stdout_text or f"exit code {return_code}"
+            return Tlog2ChartResult(False, f"tlog2chart failed: {details}")
+
+        parsed_payload: dict[str, object] | None = None
+        if stdout_text:
+            lines = [line.strip() for line in stdout_text.splitlines() if line.strip()]
+            candidate_payloads = [stdout_text]
+            if lines:
+                candidate_payloads.append(lines[-1])
+            for payload in candidate_payloads:
+                try:
+                    parsed = json.loads(payload)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(parsed, dict):
+                    parsed_payload = parsed
+                    break
+
+        if parsed_payload:
+            status = str(parsed_payload.get("status", "")).strip() or "done"
+            report_path = str(parsed_payload.get("report_path", "")).strip()
+            if not report_path:
+                report_path = str(parsed_payload.get("analysis_report_location", "")).strip()
+            message = str(parsed_payload.get("message", "")).strip()
+            if status.lower() in {"failed", "error"}:
+                if not message:
+                    message = str(parsed_payload.get("error_message", "")).strip() or "Unknown tlog2chart error"
+                return Tlog2ChartResult(False, message, status_text=status)
+            if report_path:
+                return Tlog2ChartResult(True, message or "Analysis report generated", report_path, status)
+            if status.lower() in {"accepted", "running"}:
+                return Tlog2ChartResult(False, f"tlog2chart returned status '{status}' without report path")
+
+        if stdout_text:
+            lines = [line.strip() for line in stdout_text.splitlines() if line.strip()]
+            last_line = lines[-1] if lines else ""
+            if last_line:
+                report_candidate = Path(last_line.strip('"'))
+                if report_candidate.exists():
+                    return Tlog2ChartResult(True, "Analysis report generated", str(report_candidate))
+        if stderr_text:
+            return Tlog2ChartResult(False, stderr_text)
+        return Tlog2ChartResult(True, "tlog2chart completed")
 
 
 class MainWindow(QMainWindow):
@@ -218,8 +370,12 @@ class MainWindow(QMainWindow):
         self._device_log_ready = False
         self._worker: SerialWorker | None = None
         self._diagnostic_worker: DiagnosticJobWorker | None = None
+        self._tlog2chart_worker: Tlog2ChartWorker | None = None
         self._diagnostic_job_kind: str | None = None
         self._diagnostic_timestamp = ""
+        self._last_tlog_path: Path | None = None
+        self._last_backup_response: str = ""
+        self._last_stat_response: str = ""
         self._controller: DataController | None = None
         self._sample_rate_window_timestamps: list[float] = []
         self._sample_rate_hz_windows: list[float] = []
@@ -359,8 +515,8 @@ class MainWindow(QMainWindow):
         self.backup_btn = QPushButton("Backup")
         self.tlog_btn = QPushButton("tlog")
         self.adv_diag_btn = QPushButton("Adv. Diag.")
-        self.button_a = QPushButton("A")
-        self.button_b = QPushButton("B")
+        self.button_a = QPushButton("tlog2chart")
+        self.button_b = QPushButton("Bias check")
         
         diag_buttons_layout.addWidget(self.diagnostic_btn, 0, 0)
         diag_buttons_layout.addWidget(self.backup_btn, 0, 1)
@@ -439,7 +595,7 @@ class MainWindow(QMainWindow):
 
     def _update_usb_state_label(self):
         if self.serial.connected:
-            port = self.port.currentText().strip() or "Unknown"
+            port = self._connected_port() or self.port.currentText().strip() or "Unknown"
             self.usb_state_label.setText(f"Connected ({port} @ {self._active_baud})")
         else:
             self.usb_state_label.setText("Disconnected")
@@ -453,6 +609,35 @@ class MainWindow(QMainWindow):
         except (TypeError, ValueError, AttributeError):
             return None
         return baud
+
+    def _connected_port(self) -> str | None:
+        serial_handle = getattr(self.serial, "_serial", None)
+        if not serial_handle:
+            return None
+        port = getattr(serial_handle, "port", None) or getattr(serial_handle, "name", None)
+        if not isinstance(port, str):
+            return None
+        port = port.strip()
+        return port or None
+
+    def _baud_switch_port_candidates(self, preferred_port: str | None = None) -> list[str]:
+        ordered: list[str] = []
+        if preferred_port:
+            ordered.append(preferred_port.strip())
+        connected_port = self._connected_port()
+        if connected_port:
+            ordered.append(connected_port)
+        combo_port = self.port.currentText().strip()
+        if combo_port:
+            ordered.append(combo_port)
+        ordered.extend(self.serial.ports())
+        candidates: list[str] = []
+        for candidate in ordered:
+            if not candidate:
+                continue
+            if candidate not in candidates:
+                candidates.append(candidate)
+        return candidates
 
     def refresh_ports(self):
         current = self.port.currentText()
@@ -507,7 +692,18 @@ class MainWindow(QMainWindow):
         
         # Show device selection dialog
         dialog = DeviceSelectionDialog(devices, self)
-        dialog.setStyleSheet(self.styleSheet())  # Apply app styling
+        dialog.setStyleSheet(
+            self.styleSheet()
+            + """
+            QDialog#deviceSelectionDialog {
+                background-color: #90ee90;
+                color: #0a1b1d;
+            }
+            QLabel {
+                color: #0a1b1d;
+            }
+            """
+        )
         
         if dialog.exec() == QDialog.Accepted:
             # Check if user selected manual mode
@@ -561,7 +757,7 @@ class MainWindow(QMainWindow):
             self._update_controls_for_idle()
             return
 
-        if not self._switch_to_high_speed():
+        if not self._switch_to_high_speed(allow_low_speed_fallback=True):
             self.append("Failed to switch to 230400 baud after identity validation")
             self.serial.disconnect()
             self._update_usb_state_label()
@@ -601,7 +797,10 @@ class MainWindow(QMainWindow):
         self.progress.setRange(0, 0)
         self.progress.show()
         self.abort_btn.setEnabled(True)
-        self._diagnostic_worker = DiagnosticJobWorker(self.serial, steps)
+        optional_keys = ()
+        if kind == "adv_diag":
+            optional_keys = ("stat",)
+        self._diagnostic_worker = DiagnosticJobWorker(self.serial, steps, continue_on_failure_keys=optional_keys)
         self._diagnostic_worker.progress.connect(self._on_diagnostic_progress)
         self._diagnostic_worker.line_received.connect(self._on_diagnostic_line)
         self._diagnostic_worker.job_finished.connect(self._on_diagnostic_job_finished)
@@ -709,15 +908,18 @@ class MainWindow(QMainWindow):
             return
         self.diagnostic_status.setPlainText(backup_result.response)
         if self._is_invalid_command_response(backup_result.response):
+            self._last_backup_response = ""
             output = self._append_result(f"{timestamp} Backup: Unsupported on this EVC (Invalid Command).")
             self.diagnostic_output.setPlainText(output)
             self.append("Backup unavailable: EVC responded 'Invalid Command'")
             return
         if not backup_result.ok:
+            self._last_backup_response = ""
             output = self._append_result(f"{timestamp} Backup: Command failed - {backup_result.message}")
             self.diagnostic_output.setPlainText(output)
             self.append(f"Backup failed: {backup_result.message}")
             return
+        self._last_backup_response = backup_result.response or ""
         prefix = self._diagnostic_file_prefix()
         now = datetime.now()
         datecode = now.strftime("%Y%m%d")
@@ -735,6 +937,55 @@ class MainWindow(QMainWindow):
             output = self._append_result(f"{timestamp} Backup: Failed to save - {e}")
             self.diagnostic_output.setPlainText(output)
             self.append(f"Backup save failed: {e}")
+
+    def _backup_response_cache(self) -> str:
+        """Return the most recently downloaded backup response, if available."""
+        return self._last_backup_response.strip()
+
+    def _stat_response_cache(self) -> str:
+        """Return the most recently downloaded stat response, if available."""
+        return self._last_stat_response.strip()
+
+    def _cached_advanced_diagnostic(self, timestamp: str) -> tuple[str, str] | None:
+        """Fast path: derive advanced diagnostic from memory without reading a file."""
+        backup_text = self._backup_response_cache()
+        stat_text = self._stat_response_cache()
+        if not backup_text and not stat_text:
+            return None
+        diag_output: list[str] = []
+        if stat_text:
+            self.diagnostic_status.setPlainText(stat_text)
+            faults = self._extract_active_faults(stat_text)
+            if faults:
+                diag_output.append("Active faults detected:")
+                for code, description in faults:
+                    fault_description = TYKON_FAULT_EXPLANATIONS.get(code, description)
+                    diag_output.append(f"  {code} -- {fault_description}")
+            else:
+                diag_output.append("No active faults or alarms detected.")
+        else:
+            diag_output.append("Diagnostic command failed: no response")
+        if not backup_text:
+            output = self._append_result(f"{timestamp} Adv. Diag.: Failed to download backup - no response")
+            self.diagnostic_output.setPlainText(output)
+            self.append("Advanced diagnostic: backup download failed")
+            return None
+        if self._is_invalid_command_response(backup_text):
+            output = self._append_result(
+                f"{timestamp} Adv. Diag.: Backup unsupported on this EVC (Invalid Command)."
+            )
+            self.diagnostic_output.setPlainText(output)
+            self.append("Advanced diagnostic: backup unavailable (Invalid Command)")
+            return None
+        accu_info = self._extract_accumulator_info(backup_text)
+        result_lines = [f"{timestamp} Adv. Diag.:"] + diag_output
+        if accu_info:
+            result_lines.append("\n=== Accumulated Information ===")
+            result_lines.extend(accu_info.split('\n'))
+        output = self._append_result("\n".join(result_lines))
+        self.diagnostic_output.setPlainText(output)
+        self.append("Advanced diagnostic complete")
+        return output, backup_text
 
     def _handle_tlog_result(self, timestamp: str, result: DiagnosticJobResult):
         tlog_result = self._result_for_key(result, "tlog")
@@ -774,6 +1025,7 @@ class MainWindow(QMainWindow):
         tlog_path = log_dir / filename
         try:
             tlog_path.write_text(response_text, encoding="utf-8")
+            self._last_tlog_path = tlog_path
             if incomplete_timeout:
                 output = self._append_result(
                     f"{timestamp} tlog: Timed out before footer; partial log saved.\nSaved to: {tlog_path}"
@@ -791,22 +1043,18 @@ class MainWindow(QMainWindow):
     def _handle_advanced_diagnostic_result(self, timestamp: str, result: DiagnosticJobResult):
         stat_result = self._result_for_key(result, "stat")
         backup_result = self._result_for_key(result, "back")
-        diag_output: list[str] = []
-        if stat_result and stat_result.ok:
-            self.diagnostic_status.setPlainText(stat_result.response)
-            faults = self._extract_active_faults(stat_result.response)
-            if faults:
-                diag_output.append("Active faults detected:")
-                for code, description in faults:
-                    fault_description = TYKON_FAULT_EXPLANATIONS.get(code, description)
-                    diag_output.append(f"  {code} -- {fault_description}")
-            else:
-                diag_output.append("No active faults or alarms detected.")
-        elif stat_result:
-            self.diagnostic_status.setPlainText(stat_result.response)
-            diag_output.append(f"Diagnostic command failed: {stat_result.message}")
-        else:
-            diag_output.append("Diagnostic command failed: no response")
+        if stat_result and stat_result.response:
+            self._last_stat_response = stat_result.response
+        elif stat_result is not None:
+            self._last_stat_response = ""
+        if backup_result and backup_result.response:
+            self._last_backup_response = backup_result.response
+        elif backup_result is not None:
+            self._last_backup_response = ""
+        if backup_result and backup_result.ok and stat_result and stat_result.ok:
+            self._last_backup_response = backup_result.response or ""
+            self._last_stat_response = stat_result.response or ""
+
         if not backup_result:
             output = self._append_result(f"{timestamp} Adv. Diag.: Failed to download backup - no response")
             self.diagnostic_output.setPlainText(output)
@@ -825,11 +1073,27 @@ class MainWindow(QMainWindow):
             self.diagnostic_output.setPlainText(output)
             self.append("Advanced diagnostic: backup download failed")
             return
+
         accu_info = self._extract_accumulator_info(backup_result.response)
-        result_lines = [f"{timestamp} Adv. Diag.:"] + diag_output
-        if accu_info:
-            result_lines.append("\n=== Accumulated Information ===")
-            result_lines.extend(accu_info.split('\n'))
+        if not accu_info:
+            output = self._append_result(f"{timestamp} Adv. Diag.: No accumulated information found in backup data")
+            self.diagnostic_output.setPlainText(output)
+            self.append("Advanced diagnostic complete: no accumulated information found")
+            return
+
+        result_lines = [f"{timestamp} Adv. Diag.:"]
+        if stat_result and stat_result.ok:
+            self.diagnostic_status.setPlainText(stat_result.response)
+            faults = self._extract_active_faults(stat_result.response)
+            if faults:
+                result_lines.append("Active faults detected:")
+                for code, description in faults:
+                    fault_description = TYKON_FAULT_EXPLANATIONS.get(code, description)
+                    result_lines.append(f"  {code} -- {fault_description}")
+            else:
+                result_lines.append("No active faults or alarms detected.")
+        result_lines.append("\n=== Accumulated Information ===")
+        result_lines.extend(accu_info.split('\n'))
         output = self._append_result("\n".join(result_lines))
         self.diagnostic_output.setPlainText(output)
         self.append("Advanced diagnostic complete")
@@ -915,11 +1179,16 @@ class MainWindow(QMainWindow):
         )
 
     def run_adv_diagnostic(self):
-        """Advanced diagnostic: read backup file and extract accumulator info"""
+        """Advanced diagnostic: use the cached backup/stat responses when available."""
         if not self.serial.connected:
             message = "Advanced diagnostic unavailable: connect to an EVC first."
             self.diagnostic_status.setPlainText(message)
             self.append(message)
+            return
+        timestamp = datetime.now().strftime("%Y/%m/%d %H:%M")
+        cached = self._cached_advanced_diagnostic(timestamp)
+        if cached is not None:
+            self.append("Advanced diagnostic response served from memory")
             return
         self._start_diagnostic_job(
             "adv_diag",
@@ -963,41 +1232,77 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _extract_accumulator_info(response: str) -> str:
-        """Extract accumulator information from backup response"""
+        """Extract accumulator summary from backup response."""
         lines = response.splitlines()
-        accu_lines = []
+        accu_lines: list[str] = []
         in_accu_section = False
-        
-        for i, raw_line in enumerate(lines):
+
+        for raw_line in lines:
             line = raw_line.strip()
-            
-            # Start collecting when we find "Flash Write count"
+            if not line:
+                continue
+
+            # Stop at the start of the large cap-switch table. Keep only the summary lines.
+            if line.startswith("Cumulative CapSwitch counters for"):
+                break
+
+            # Start collecting when we reach the first accumulated summary value.
             if "Flash Write count" in line:
-               in_accu_section = True
-               accu_lines.append(line)
-               continue
-            
+                in_accu_section = True
+                accu_lines.append(line)
+                continue
+
             if not in_accu_section:
-               continue
-            
-            # Stop collecting after "DNet Lost Comm"
-            if "DNet Lost Comm" in line:
-               accu_lines.append(line)
-               break
-            
-            # Add lines within the accumulator section
-            if in_accu_section:
-               if line and not line.endswith(">"):
-                   accu_lines.append(line)
-        
+                continue
+
+            if line.endswith(">"):
+                continue
+            accu_lines.append(line)
+
+            # Triton/other units may emit either DNet or ECAT naming.
+            if ("DNet Lost Comm" in line) or ("ECAT Lost Comm" in line):
+                continue
+
         return "\n".join(accu_lines) if accu_lines else ""
 
     def run_button_a(self):
-        """Placeholder for button A - reserved for tlog2chart in future"""
+        """Run tlog2chart with the newest saved tlog file."""
+        if self._tlog2chart_worker and self._tlog2chart_worker.isRunning():
+            self.append("tlog2chart: integration is already running.")
+            return
+        tlog_path = self._resolve_latest_tlog_path()
+        if not tlog_path:
+            message = "tlog2chart unavailable: no tlog file found. Run tlog download first."
+            self.diagnostic_status.setPlainText(message)
+            self.append(message)
+            return
+        executable = self._resolve_tlog2chart_executable()
+        if not executable:
+            message = (
+                "tlog2chart unavailable: tlog2chart executable not found. "
+                "Place tlog2chart.exe in app folder/tools/bin or add it to PATH."
+            )
+            timestamp = datetime.now().strftime("%Y/%m/%d %H:%M")
+            output = self._append_result(f"{timestamp} tlog2chart: {message}")
+            self.diagnostic_output.setPlainText(output)
+            self.diagnostic_status.setPlainText(message)
+            self.append(message)
+            return
         timestamp = datetime.now().strftime("%Y/%m/%d %H:%M")
-        output = self._append_result(f"{timestamp} Button A: Not yet implemented (reserved for tlog2chart)")
-        self.diagnostic_output.setPlainText(output)
-        self.append("Button A: Not yet implemented")
+        output_dir = (self.log_file.parent if self.log_file else Path.cwd()) / "tlog2chart_reports"
+        launch_note = (
+            f"{timestamp} tlog2chart: Launching tlog2chart.\n"
+            f"Input tlog: {tlog_path}\n"
+            f"Executable: {executable}"
+        )
+        self.diagnostic_output.setPlainText(self._append_result(launch_note))
+        self.diagnostic_status.setPlainText("tlog2chart: launching...")
+        self.append(f"tlog2chart: started for {tlog_path.name}")
+        self.button_a.setEnabled(False)
+        self._tlog2chart_worker = Tlog2ChartWorker(executable=executable, tlog_path=tlog_path, output_dir=output_dir)
+        self._tlog2chart_worker.progress.connect(self._on_tlog2chart_progress)
+        self._tlog2chart_worker.job_finished.connect(self._on_tlog2chart_finished)
+        self._tlog2chart_worker.start()
 
     def run_button_b(self):
         """Placeholder for button B - reserved for Palantir in future"""
@@ -1005,6 +1310,75 @@ class MainWindow(QMainWindow):
         output = self._append_result(f"{timestamp} Button B: Not yet implemented (reserved for Palantir)")
         self.diagnostic_output.setPlainText(output)
         self.append("Button B: Not yet implemented")
+
+    def _resolve_latest_tlog_path(self) -> Path | None:
+        if self._last_tlog_path and self._last_tlog_path.exists():
+            return self._last_tlog_path
+        log_dir = self.log_file.parent if self.log_file else Path.cwd()
+        candidates = list(log_dir.glob("*_tlog.txt")) + list(log_dir.glob("*_tlog_partial.txt"))
+        if not candidates:
+            return None
+        latest = max(candidates, key=lambda p: p.stat().st_mtime)
+        self._last_tlog_path = latest
+        return latest
+
+    def _resolve_tlog2chart_executable(self) -> Path | None:
+        base = runtime_dir()
+        local_candidates = [
+            base / "tlog2chart.exe",
+            base / "tlog2chart",
+            base / "tools" / "tlog2chart.exe",
+            base / "tools" / "tlog2chart",
+            base / "bin" / "tlog2chart.exe",
+            base / "bin" / "tlog2chart",
+        ]
+        for candidate in local_candidates:
+            if candidate.exists():
+                return candidate
+        which_candidate = shutil.which("tlog2chart.exe") or shutil.which("tlog2chart")
+        return Path(which_candidate) if which_candidate else None
+
+    @Slot(str)
+    def _on_tlog2chart_progress(self, message: str):
+        self.diagnostic_status.setPlainText(message)
+        self.append(message)
+
+    @Slot(object)
+    def _on_tlog2chart_finished(self, result):
+        worker = self.sender()
+        if worker is not self._tlog2chart_worker:
+            return
+        self._tlog2chart_worker = None
+        self._update_controls_for_idle()
+        timestamp = datetime.now().strftime("%Y/%m/%d %H:%M")
+        if not isinstance(result, Tlog2ChartResult):
+            generic = "tlog2chart: unexpected result payload."
+            self.diagnostic_status.setPlainText(generic)
+            self.diagnostic_output.setPlainText(self._append_result(f"{timestamp} {generic}"))
+            self.append(generic)
+            return
+        if result.ok:
+            if result.report_path:
+                status = (
+                    f"tlog2chart: analysis done.\n"
+                    f"Report path: {result.report_path}"
+                )
+                output = self._append_result(
+                    f"{timestamp} tlog2chart: Analysis report generated.\nReport path: {result.report_path}"
+                )
+                self.diagnostic_output.setPlainText(output)
+                self.diagnostic_status.setPlainText(status)
+                self.append(f"tlog2chart complete: report saved to {result.report_path}")
+                return
+            output = self._append_result(f"{timestamp} tlog2chart: Completed - {result.message}")
+            self.diagnostic_output.setPlainText(output)
+            self.diagnostic_status.setPlainText(f"tlog2chart: {result.message}")
+            self.append(f"tlog2chart complete: {result.message}")
+            return
+        output = self._append_result(f"{timestamp} tlog2chart: Failed - {result.message}")
+        self.diagnostic_output.setPlainText(output)
+        self.diagnostic_status.setPlainText(f"tlog2chart failed: {result.message}")
+        self.append(f"tlog2chart failed: {result.message}")
 
     def _reset_sample_rate_benchmark(self):
         self._sample_rate_window_timestamps = []
@@ -1100,7 +1474,7 @@ class MainWindow(QMainWindow):
                 self.append("LOG3 (tlog rt) is not supported on Chronos. Falling back to LOG2 (tlog 1).")
                 mode = "log2"
                 self._run_mode = "log2"
-            if not self._switch_to_high_speed():
+            if not self._switch_to_high_speed(allow_low_speed_fallback=True):
                 return
 
         self.machine.transition(AppState.CHECK_CONNECTION, "Validate existing connection")
@@ -1219,12 +1593,15 @@ class MainWindow(QMainWindow):
         self._worker.start_polling()
         self._chart_timer.start()
 
-    def _switch_to_high_speed(self) -> bool:
+    def _switch_to_high_speed(self, allow_low_speed_fallback: bool = False) -> bool:
+        source_port = self._connected_port() or self.port.currentText().strip()
         current_baud = self._connected_baudrate()
         if current_baud == HIGH_SPEED_BAUD:
             self._active_baud = HIGH_SPEED_BAUD
             ver_result = self._query_ver_with_retry()
             if not ver_result.ok or not self._is_valid_ver_response(ver_result.response):
+                if allow_low_speed_fallback and self._fallback_to_low_speed_link():
+                    return True
                 self.machine.transition(AppState.ERROR, ver_result.message)
                 self.append(f"High-speed validation failed: {ver_result.message}")
                 return False
@@ -1244,23 +1621,67 @@ class MainWindow(QMainWindow):
         time.sleep(POST_SWITCH_SETTLE_S)
         self.serial.disconnect()
         self._update_usb_state_label()
-        reconnect = self.serial.connect(self.port.currentText(), HIGH_SPEED_BAUD, timeout=HANDSHAKE_TIMEOUT_S)
-        self.append(reconnect.message)
+        reconnect_error = ""
+        verify_error = ""
+        for candidate_port in self._baud_switch_port_candidates(source_port):
+            reconnect = self.serial.connect(candidate_port, HIGH_SPEED_BAUD, timeout=HANDSHAKE_TIMEOUT_S)
+            self.append(reconnect.message)
+            self._update_usb_state_label()
+            if not reconnect.ok:
+                reconnect_error = reconnect.message
+                continue
+            self.port.setCurrentText(candidate_port)
+            self._update_usb_state_label()
+            ver_result = self._query_ver_with_retry()
+            if ver_result.ok and self._is_valid_ver_response(ver_result.response):
+                if source_port and candidate_port != source_port:
+                    self.append(f"Detected COM re-enumeration: {source_port} -> {candidate_port}")
+                self._active_baud = HIGH_SPEED_BAUD
+                self.baud.setCurrentText(str(HIGH_SPEED_BAUD))
+                self.append(f"High-speed ver response:\n{ver_result.response}")
+                return True
+            verify_error = ver_result.message
+            self.append(f"Post-switch ver failed on {candidate_port}: {ver_result.message}")
+            self.serial.disconnect()
+        if allow_low_speed_fallback and self._fallback_to_low_speed_link():
+            return True
+        error_message = verify_error or reconnect_error or f"Failed to reconnect at {HIGH_SPEED_BAUD} baud"
+        self.machine.transition(AppState.ERROR, error_message)
+        return False
+
+    def _fallback_to_low_speed_link(self) -> bool:
+        source_port = self._connected_port() or self.port.currentText().strip()
+        if self._connected_baudrate() == LOW_SPEED_BAUD:
+            ver_result = self._query_ver_with_retry()
+            if ver_result.ok and self._is_valid_ver_response(ver_result.response):
+                self._active_baud = LOW_SPEED_BAUD
+                self.baud.setCurrentText(str(LOW_SPEED_BAUD))
+                self.append("High-speed mode unavailable; continuing at 57600 baud")
+                return True
+        self.serial.disconnect()
         self._update_usb_state_label()
-        if not reconnect.ok:
-            self.machine.transition(AppState.ERROR, reconnect.message)
-            return False
-        ver_result = self._query_ver_with_retry()
-        if not ver_result.ok or not self._is_valid_ver_response(ver_result.response):
-            self.machine.transition(AppState.ERROR, ver_result.message)
-            self.append(f"Post-switch ver failed: {ver_result.message}")
-            return False
-        self._active_baud = HIGH_SPEED_BAUD
-        self.baud.setCurrentText(str(HIGH_SPEED_BAUD))
-        self.append(f"High-speed ver response:\n{ver_result.response}")
-        return True
+        for candidate_port in self._baud_switch_port_candidates(source_port):
+            reconnect = self.serial.connect(candidate_port, LOW_SPEED_BAUD, timeout=HANDSHAKE_TIMEOUT_S)
+            self.append(reconnect.message)
+            self._update_usb_state_label()
+            if not reconnect.ok:
+                continue
+            self.port.setCurrentText(candidate_port)
+            self._update_usb_state_label()
+            ver_result = self._query_ver_with_retry()
+            if not ver_result.ok or not self._is_valid_ver_response(ver_result.response):
+                self.serial.disconnect()
+                continue
+            if source_port and candidate_port != source_port:
+                self.append(f"Detected COM re-enumeration: {source_port} -> {candidate_port}")
+            self._active_baud = LOW_SPEED_BAUD
+            self.baud.setCurrentText(str(LOW_SPEED_BAUD))
+            self.append("High-speed mode unavailable; continuing at 57600 baud")
+            return True
+        return False
 
     def _switch_to_low_speed(self, fail_on_error: bool) -> bool:
+        source_port = self._connected_port() or self.port.currentText().strip()
         current_baud = self._connected_baudrate()
         if current_baud == LOW_SPEED_BAUD:
             self._active_baud = LOW_SPEED_BAUD
@@ -1296,25 +1717,32 @@ class MainWindow(QMainWindow):
         time.sleep(POST_SWITCH_SETTLE_S)
         self.serial.disconnect()
         self._update_usb_state_label()
-        reconnect = self.serial.connect(self.port.currentText(), LOW_SPEED_BAUD, timeout=HANDSHAKE_TIMEOUT_S)
-        self.append(reconnect.message)
-        self._update_usb_state_label()
-        if not reconnect.ok:
-            if fail_on_error:
-                self.machine.transition(AppState.ERROR, reconnect.message)
-            return False
-
-        ver_result = self._query_ver_with_retry()
-        if not ver_result.ok or not self._is_valid_ver_response(ver_result.response):
-            if fail_on_error:
-                self.machine.transition(AppState.ERROR, ver_result.message)
-            self.append(f"Post-switch low-speed ver failed: {ver_result.message}")
-            return False
-
-        self._active_baud = LOW_SPEED_BAUD
-        self.baud.setCurrentText(str(LOW_SPEED_BAUD))
-        self.append(f"Low-speed ver response:\n{ver_result.response}")
-        return True
+        reconnect_error = ""
+        verify_error = ""
+        for candidate_port in self._baud_switch_port_candidates(source_port):
+            reconnect = self.serial.connect(candidate_port, LOW_SPEED_BAUD, timeout=HANDSHAKE_TIMEOUT_S)
+            self.append(reconnect.message)
+            self._update_usb_state_label()
+            if not reconnect.ok:
+                reconnect_error = reconnect.message
+                continue
+            self.port.setCurrentText(candidate_port)
+            self._update_usb_state_label()
+            ver_result = self._query_ver_with_retry()
+            if ver_result.ok and self._is_valid_ver_response(ver_result.response):
+                if source_port and candidate_port != source_port:
+                    self.append(f"Detected COM re-enumeration: {source_port} -> {candidate_port}")
+                self._active_baud = LOW_SPEED_BAUD
+                self.baud.setCurrentText(str(LOW_SPEED_BAUD))
+                self.append(f"Low-speed ver response:\n{ver_result.response}")
+                return True
+            verify_error = ver_result.message
+            self.append(f"Post-switch low-speed ver failed on {candidate_port}: {ver_result.message}")
+            self.serial.disconnect()
+        error_message = verify_error or reconnect_error or f"Failed to reconnect at {LOW_SPEED_BAUD} baud"
+        if fail_on_error:
+            self.machine.transition(AppState.ERROR, error_message)
+        return False
 
     def _restore_low_speed_on_close(self) -> bool:
         if not self.serial.connected:
@@ -1596,6 +2024,20 @@ class MainWindow(QMainWindow):
             self.adv_diag_btn.setEnabled(False)
             self.button_a.setEnabled(False)
             self.button_b.setEnabled(False)
+            return
+        if self._tlog2chart_worker and self._tlog2chart_worker.isRunning():
+            connected = self.serial.connected
+            self.log1_btn.setEnabled(demo_mode or connected)
+            self.log2_btn.setEnabled((not demo_mode) and connected)
+            self.log3_btn.setEnabled((not demo_mode) and connected)
+            self.probe_btn.setEnabled(self.serial.connected and not demo_mode)
+            self.run_profile.setEnabled(True)
+            self.diagnostic_btn.setEnabled(connected)
+            self.backup_btn.setEnabled(connected)
+            self.tlog_btn.setEnabled(connected)
+            self.adv_diag_btn.setEnabled(connected)
+            self.button_a.setEnabled(False)
+            self.button_b.setEnabled(connected)
             return
         connected = self.serial.connected
         self.log1_btn.setEnabled(demo_mode or connected)
@@ -1932,6 +2374,10 @@ class MainWindow(QMainWindow):
             self._save_result_text()
             self._stop_phase2_pipeline()
             self._cancel_diagnostic_job()
+            if self._tlog2chart_worker and self._tlog2chart_worker.isRunning():
+                self._tlog2chart_worker.request_cancel()
+                self._tlog2chart_worker.wait(2000)
+            self._tlog2chart_worker = None
             if self.machine.state not in (AppState.IDLE, AppState.ERROR, AppState.CLEANUP, AppState.EXIT):
                 self.machine.transition(AppState.IDLE, "Close requested")
             if self.machine.state in (AppState.IDLE, AppState.ERROR):
