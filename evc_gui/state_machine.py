@@ -13,19 +13,21 @@ class AppState(Enum):
     RUN = auto()
     SAVE_DATA = auto()
     DOWNLOADING_CONTOUR = auto()
+    DOWNLOADING_DIAGNOSTIC = auto()
     CLEANUP = auto()
     ERROR = auto()
     EXIT = auto()
 
 ALLOWED_TRANSITIONS = {
     AppState.INITIALIZATION: {AppState.IDLE, AppState.ERROR},
-    AppState.IDLE: {AppState.SCAN_EQUIPMENT, AppState.DOWNLOADING_CONTOUR, AppState.CLEANUP, AppState.EXIT},
+    AppState.IDLE: {AppState.SCAN_EQUIPMENT, AppState.DOWNLOADING_CONTOUR, AppState.DOWNLOADING_DIAGNOSTIC, AppState.CLEANUP, AppState.EXIT},
     AppState.SCAN_EQUIPMENT: {AppState.CHECK_CONNECTION, AppState.IDLE, AppState.ERROR},
     AppState.CHECK_CONNECTION: {AppState.GETTING_START, AppState.IDLE, AppState.ERROR},
     AppState.GETTING_START: {AppState.RUN, AppState.IDLE, AppState.ERROR},
     AppState.RUN: {AppState.SAVE_DATA, AppState.IDLE, AppState.ERROR},
     AppState.SAVE_DATA: {AppState.RUN, AppState.IDLE, AppState.ERROR},
     AppState.DOWNLOADING_CONTOUR: {AppState.IDLE, AppState.ERROR},
+    AppState.DOWNLOADING_DIAGNOSTIC: {AppState.IDLE, AppState.ERROR},
     AppState.ERROR: {AppState.IDLE, AppState.CLEANUP},
     AppState.CLEANUP: {AppState.IDLE, AppState.EXIT},
     AppState.EXIT: set(),

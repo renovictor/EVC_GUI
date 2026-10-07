@@ -1,4 +1,4 @@
-# EVC GUI v26.0.2
+# EVC GUI v26.0.10
 
 ## Purpose
 A maintainable PySide6 foundation for validating EVC communication and progressively replacing/augmenting the original LabVIEW GUI. Supported product selections are Quantum, Tykon, Triton, and Chronos.
@@ -36,7 +36,7 @@ At startup, a borderless 5-second splash screen immediately appears. The loader 
    - Click **Refresh Ports** to manually list available ports and select port/baud
    - Click **Start / Connect** to connect (falls back to baud rate scanning if needed)
 3. Once connected:
-   - Click **Run**. During `SCAN_EQUIPMENT`, the GUI sends `ver`, `sn`, issues `baud 7` to set **230400**, reconnects at **230400**, validates with `ver`, then enters continuous `pdat1` + `psum1` polling.
+   - Click **Run**. During `SCAN_EQUIPMENT`, the GUI sends `ver`, `sn`, issues `baud 7` to set **230400**, reconnects at **230400**, and validates with `ver`; if high-speed validation fails (for example on some Triton units), it automatically falls back to verified **57600** operation and continues.
 4. Open **Power Scope** to select traces, choose the latest **10 sec** or **60 sec** time window, and view current values.
 5. If no real EVC data is available, enable **Demo Mode (Phase 2/3)** before Run to generate synthetic `pdat1`/`psum1` values and Smith Chart impedance demo patterns (VSWR=5 circle, spiral, linear, random).
 6. During run, raw Phase 2 CSV files are written in `logs/` and rotated every 3 hours:
@@ -62,9 +62,9 @@ Use `ASM-logo-small.gif` for splash branding and `smithchart.ico` for title bar/
 ## Build a single EXE
 With the virtual environment active and approved assets present:
 
-`pyinstaller --noconfirm --clean --onefile --windowed --name "EVC_GUI_v26.0.7" --icon "smithchart.ico" --add-data "ASM-logo-small.gif;." main.py`
+`pyinstaller --noconfirm --clean --onefile --windowed --name "EVC_GUI_v26.0.10" --icon "smithchart.ico" --add-data "ASM-logo-small.gif;." main.py`
 
-The output will be `dist\EVC_GUI_v26.0.7.exe`. PyInstaller one-file extraction means external writable logs are created beside the EXE when permissions allow. For controlled production deployment, use a writable deployment folder.
+The output will be `dist\EVC_GUI_v26.0.10.exe`. PyInstaller one-file extraction means external writable logs are created beside the EXE when permissions allow. For controlled production deployment, use a writable deployment folder.
 
 ## Project layout
 - `version.py`: version and history source of truth
@@ -75,7 +75,7 @@ The output will be `dist\EVC_GUI_v26.0.7.exe`. PyInstaller one-file extraction m
 - `evc_gui/ui/device_selection_dialog.py`: device selection UI
 - `evc_gui/ui/`: splash and chart widgets
 - `evc_gui/logging_config.py`: rotating logs and fault capture
-- `RELEASE_CHECKLIST_v26.0.7.md`: repeatable release procedure
+- `RELEASE_CHECKLIST_v26.0.10.md`: repeatable release procedure
 - `AUTO_DETECTION_FEATURE.md`: detailed auto-detection documentation
 
 ## Notes

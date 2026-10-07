@@ -2,6 +2,38 @@
 
 All notable changes to this project are documented in this file.
 
+## [26.0.10] - 2026-10-07
+
+### Fixed
+- Scope popup chart window can now be closed and reopened reliably. The dialog now uses a standard close-button window lifecycle instead of getting stuck after detach/open cycles.
+
+## [26.0.9] - 2026-10-01
+
+### Added
+- Implemented **Button A** integration with `tlog2chart`:
+  - Finds the latest saved `tlog` file (or uses the most recent Button A source path).
+  - Launches external `tlog![img.png](img.png)2chart` with a handshake stage and analysis stage.
+  - Reports running/success/failure status in Troubleshoot **Status/Result** panes.
+  - Captures and displays returned analysis report path when available.
+
+### Changed
+- Button A now runs `tlog2chart` asynchronously on a worker thread so GUI responsiveness and existing data-acquisition paths are preserved.
+- App shutdown now cancels any in-flight Button A `tlog2chart` task cleanly.
+- Troubleshoot Button A label is now **tlog2chart** for clearer UX.
+
+### Fixed
+- Advanced Diagnostic accumulator summary parsing now trims Triton output after `Cumulative CapSwitch counters for F1 CapArr 1 :` heading (without appending the large counter tables).
+
+## [26.0.8] - 2026-09-30
+
+### Changed
+- Baud-switch reconnect logic now handles USB COM re-enumeration by scanning/retrying candidate ports after `baud` commands instead of assuming the original COM number remains valid.
+- USB connection status display now reflects the actual connected serial handle port when the device moves between COM numbers.
+
+### Fixed
+- Triton Start/Connect normalization no longer fails on `Post-switch low-speed ver failed` when the unit rebinds to a different COM port during baud transitions.
+- High-speed switch validation (`baud 7`) now also survives COM-port changes and retains the existing 57600 fallback path when 230400 cannot be verified.
+
 ## [26.0.7] - 2026-09-30
 
 ### Added

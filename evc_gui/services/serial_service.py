@@ -90,6 +90,7 @@ class SerialService:
         lines: list[str] = []
         seen_payload = False
         last_payload_at: float | None = None
+        matched_end_marker = False
         try:
             self._serial.reset_input_buffer()
             self._serial.write(f"{command}{line_ending}".encode("ascii", errors="ignore"))
@@ -122,6 +123,7 @@ class SerialService:
                 if line_callback is not None:
                     line_callback(line)
                 if end_markers and any(marker.lower() in line.lower() for marker in end_markers):
+                    matched_end_marker = True
                     response = "\n".join(lines)
                     msg = f"Command '{command}' response received (end marker)"
                     log.info(msg)
@@ -134,6 +136,12 @@ class SerialService:
             response = "\n".join(lines)
             if not lines:
                 return CommandResult(False, f"No response for '{command}'", "")
+            if end_markers and not matched_end_marker:
+                return CommandResult(
+                    False,
+                    f"Command '{command}' ended before end marker (response may be incomplete)",
+                    response,
+                )
             msg = f"Command '{command}' response received"
             log.info(msg)
             return CommandResult(True, msg, response)

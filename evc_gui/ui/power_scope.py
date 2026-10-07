@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
@@ -80,6 +81,18 @@ class AxisScaleDialog(QDialog):
         return self._min.value(), self._max.value(), self._step.value()
 
 
+class ScopeDialog(QDialog):
+    def __init__(self, chart_view: AxisClickableChartView, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setWindowTitle("Scope")
+        self.resize(1000, 500)
+        self.setModal(False)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowCloseButtonHint)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.addWidget(chart_view)
+
+
 class PowerScopeWidget(QWidget):
     METRICS = [
         ("pfwd", "FWD", QColor("#2E86FF")),
@@ -99,6 +112,7 @@ class PowerScopeWidget(QWidget):
         self._value_edits: dict[str, QLineEdit] = {}
         self._axis_scale_overrides: dict[str, tuple[float, float, float]] = {}
         self._quantum_lf_available = False
+        self._scope_dialog: ScopeDialog | None = None
         self._axes_usage = {
             "power": {"pfwd", "pref", "pout"},
             "cap": {"c1", "c2"},
@@ -143,6 +157,13 @@ class PowerScopeWidget(QWidget):
         top.addWidget(trace_box, 0)
         root.addLayout(top)
 
+        self.scope_btn = QPushButton("Scope")
+        self.scope_btn.clicked.connect(self.open_scope_dialog)
+        scope_row = QHBoxLayout()
+        scope_row.addStretch(1)
+        scope_row.addWidget(self.scope_btn)
+        root.addLayout(scope_row)
+
         self.chart = QChart()
         self.chart.legend().setVisible(True)
         self.chart.setBackgroundVisible(True)
@@ -186,11 +207,23 @@ class PowerScopeWidget(QWidget):
             series.attachAxis(self._axis_for_key(key))
             self._series[key] = series
 
-        chart_view = AxisClickableChartView(self.chart)
-        chart_view.setRenderHint(QPainter.Antialiasing)
-        chart_view.y_axis_clicked.connect(self._on_y_axis_clicked)
-        root.addWidget(chart_view, 1)
+        self.chart_view = AxisClickableChartView(self.chart)
+        self.chart_view.setRenderHint(QPainter.Antialiasing)
+        self.chart_view.y_axis_clicked.connect(self._on_y_axis_clicked)
+        root.addWidget(self.chart_view, 1)
         self._apply_axis_visibility()
+
+    def open_scope_dialog(self):
+        if self._scope_dialog is not None:
+            self._scope_dialog.show()
+            self._scope_dialog.raise_()
+            self._scope_dialog.activateWindow()
+            return
+        dialog_chart_view = AxisClickableChartView(self.chart)
+        dialog_chart_view.setRenderHint(QPainter.Antialiasing)
+        dialog_chart_view.y_axis_clicked.connect(self._on_y_axis_clicked)
+        self._scope_dialog = ScopeDialog(dialog_chart_view, self)
+        self._scope_dialog.show()
 
     def selected_seconds(self) -> int:
         return 60 if "60" in self.time_window.currentText() else 10

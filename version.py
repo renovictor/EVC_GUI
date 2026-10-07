@@ -1,6 +1,6 @@
 """Single source of truth for EVC GUI version information."""
 APP_NAME = "EVC GUI"
-__version__ = "26.0.9"
+__version__ = "26.0.10"
 VERSION = tuple(int(part) for part in __version__.split("."))
 COMPANY = "ASM"
 DEPARTMENT = "PEALD RF Engineering"
@@ -8,6 +8,11 @@ AUTHOR = "Victor Huang"
 CONTACT = "victor.huang@asm.com"
 
 VERSION_HISTORY = [
+    {
+        "version": "26.0.10",
+        "date": "2026-10-07",
+        "summary": "Scope popup close behavior fix: the detached chart window now has a normal close button lifecycle and can be closed/reopened reliably without locking.",
+    },
     {
         "version": "26.0.9",
         "date": "2026-10-06",

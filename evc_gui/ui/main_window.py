@@ -2369,8 +2369,26 @@ class MainWindow(QMainWindow):
         self._update_usb_state_label()
         self.append(f"{source.name} -> {target.name}: {reason}")
 
+    def _detach_chart_widgets(self):
+        for widget in (getattr(self, "power_scope", None), getattr(self, "smith_chart", None)):
+            if widget is None:
+                continue
+            chart = getattr(widget, "chart", None)
+            if chart is not None:
+                try:
+                    chart.removeAllSeries()
+                except Exception:
+                    pass
+            for attr in ("_series", "_contour_series"):
+                items = getattr(widget, attr, None)
+                if isinstance(items, dict):
+                    items.clear()
+                elif isinstance(items, list):
+                    items.clear()
+
     def closeEvent(self, event):
         try:
+            self._detach_chart_widgets()
             self._save_result_text()
             self._stop_phase2_pipeline()
             self._cancel_diagnostic_job()
@@ -2390,9 +2408,15 @@ class MainWindow(QMainWindow):
             if self.machine.state == AppState.CLEANUP:
                 self.machine.transition(AppState.EXIT, "Cleanup complete")
             event.accept()
+            app = QApplication.instance()
+            if app is not None:
+                app.quit()
         except Exception:
             log.exception("Unhandled error during close")
             event.accept()
+            app = QApplication.instance()
+            if app is not None:
+                app.quit()
 
     @staticmethod
     def _extract_product_type(response: str) -> str:

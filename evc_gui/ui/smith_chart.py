@@ -320,9 +320,17 @@ class SmithChartWidget(QWidget):
             self._contour_series.append(contour_series)
 
     def _clear_contour(self):
-        """Clear all contour series from the chart."""
-        for series in self._contour_series:
-            self.chart.removeSeries(series)
+        """Clear all contour series from the chart without leaving deleted QLineSeries wrappers behind."""
+        for series in list(self._contour_series):
+            try:
+                self.chart.removeSeries(series)
+            except Exception:
+                pass
+            try:
+                if series.parent() is self.chart:
+                    series.setParent(None)
+            except Exception:
+                pass
         self._contour_series = []
 
     def set_contour_cache(self, contour_data: dict[str, list[ZParameters]]):
