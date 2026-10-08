@@ -26,10 +26,14 @@ class SerialService:
     @staticmethod
     def ports() -> list[str]:
         """Get list of available COM ports, excluding Intel AMT and other non-device ports."""
-        return [
-            p.device for p in list_ports.comports()
-            if p.device and not SerialService._should_skip_port(p)
-        ]
+        try:
+            return [
+                p.device for p in list_ports.comports()
+                if p.device and not SerialService._should_skip_port(p)
+            ]
+        except Exception:
+            log.exception("Failed to enumerate COM ports")
+            return []
     
     @staticmethod
     def _should_skip_port(port_info) -> bool:
@@ -62,12 +66,47 @@ class SerialService:
             self._serial.write(command)
             self._serial.flush()
             reply = self._serial.readline().decode(errors="replace").strip()
-            msg = f"Reply: {reply}" if reply else "Port opened and probe sent; no reply received"
+            if reply:
+                msg = f"Reply: {reply}"
+                log.info(msg)
+                return ConnectionResult(True, msg)
+
+            # Some EVC states do not echo a bare newline; use quick ver fallback.
+            for _ in range(2):
+                ver = self.send_command(
+                    "ver",
+                    timeout=0.35,
+                    read_timeout=0.05,
+                    payload_quiet_period_s=0.03,
+                )
+                if not ver.ok or not ver.response:
+                    continue
+                payload_lines = self._command_payload_lines(ver.response, "ver")
+                if payload_lines:
+                    msg = f"Probe OK (ver): {' | '.join(payload_lines[:2])}"
+                    log.info(msg)
+                    return ConnectionResult(True, msg)
+                time.sleep(0.03)
+
+            msg = "Probe sent; no immediate reply (device may still be connected)"
             log.info(msg)
             return ConnectionResult(True, msg)
         except Exception as exc:
             log.exception("Serial probe failed")
             return ConnectionResult(False, f"Probe failed: {exc}")
+
+    @staticmethod
+    def _command_payload_lines(response: str, command: str) -> list[str]:
+        lines = [line.strip() for line in response.splitlines() if line.strip()]
+        prompt_filtered = [line for line in lines if not (line.endswith(">") and " " not in line)]
+        cmd = command.strip().lower()
+        last_echo = -1
+        for idx, line in enumerate(prompt_filtered):
+            if line.lower() == cmd:
+                last_echo = idx
+        if last_echo >= 0:
+            return [line for line in prompt_filtered[last_echo + 1:] if line.lower() != cmd]
+        return [line for line in prompt_filtered if line.lower() != cmd]
 
     def send_command(
         self,

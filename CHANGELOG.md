@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented in this file.
 
+## [26.0.11] - 2026-10-08
+
+### Changed
+- Renamed communication actions for manual workflow clarity:
+  - **Start / Connect** -> **Scan USB**
+  - **Refresh Ports** -> **Assign**
+- Assign flow now performs full EVC handshake (ver/sn + FACT mode + baud normalization/high-speed validation) before contour pre-download, matching Scan USB readiness behavior.
+- Probe button label changed to **ver**.
+
+### Fixed
+- Broken COM ports now fail fast during scan probing, avoiding long apparent hangs on unavailable ports.
+- FACT mode handling updated for user-mode units that require password entry before `zpar`, including explicit FACT verification and clearer failure reasons.
+- App exit now sends `fact off` before disconnect so units return to user mode.
+- Probe/ver fallback output now shows actual EVC response payload lines (not just command echo) and filters stale/prompt-only lines.
+- Contour flow restored so Scan USB performs contour pre-download and contour toggle plots from cache.
+
 ## [26.0.10] - 2026-10-07
 
 ### Fixed

@@ -54,6 +54,9 @@ HIGH_SPEED_BAUD = 230400
 LOW_SPEED_BAUD_COMMAND = "baud 5"
 LOW_SPEED_BAUD_COMMAND_FALLBACK = "baud 6"
 HIGH_SPEED_BAUD_COMMAND = "baud 7"
+FACT_MODE_COMMAND = "fact"
+FACT_MODE_OFF_COMMAND = "fact off"
+FACT_MODE_PASSWORD = "MtLaurel"
 START_BAUD_CANDIDATES = (LOW_SPEED_BAUD, HIGH_SPEED_BAUD)
 RUN_COMMAND_TIMEOUT_S = 0.075
 HANDSHAKE_TIMEOUT_S = 1.0
@@ -367,6 +370,7 @@ class MainWindow(QMainWindow):
         self.detected_serial_number = ""
         self.detected_firmware = ""
         self._active_baud = LOW_SPEED_BAUD
+        self._manual_assignment_active = False
         self._device_log_ready = False
         self._worker: SerialWorker | None = None
         self._diagnostic_worker: DiagnosticJobWorker | None = None
@@ -385,6 +389,7 @@ class MainWindow(QMainWindow):
         self._run_ui_update_stride = 1
         self._run_ui_sample_counter = 0
         self._run_mode = "log1"
+        self._zpar_parse_miss_logged = False
         self._chart_timer = QTimer(self)
         self._chart_timer.setInterval(250)
         self._chart_timer.timeout.connect(self._refresh_scope)
@@ -419,6 +424,7 @@ class MainWindow(QMainWindow):
         form = QGridLayout(control)
         self.product_value = QLabel(self.detected_product)
         self.port = QComboBox()
+        self.port.setEditable(True)
         self.baud = QComboBox()
         self.baud.addItems(["9600", "19200", "38400", "57600", "115200", "230400"])
         self.baud.setCurrentText(str(LOW_SPEED_BAUD))
@@ -426,10 +432,10 @@ class MainWindow(QMainWindow):
         self.run_profile.addItems(list(RUN_PROFILE_CONFIGS.keys()))
         self.run_profile.setCurrentText("Baseline")
         self.serial_number_value = QLabel("-")
-        self.refresh_btn = QPushButton("Refresh Ports")
-        self.start_btn = QPushButton("Start / Connect")
+        self.refresh_btn = QPushButton("Assign")
+        self.start_btn = QPushButton("Scan USB")
         self.demo_mode_check = QCheckBox("Demo Mode (Phase 2/3)")
-        self.probe_btn = QPushButton("Probe")
+        self.probe_btn = QPushButton("ver")
         self.log1_btn = QPushButton("Log1")
         self.log2_btn = QPushButton("Log2")
         self.log3_btn = QPushButton("Log3")
@@ -557,7 +563,7 @@ class MainWindow(QMainWindow):
         troubleshoot_layout.addLayout(content_layout, 1)
         tabs.addTab(troubleshoot_page, "Troubleshoot")
 
-        self.refresh_btn.clicked.connect(self.refresh_ports)
+        self.refresh_btn.clicked.connect(self.assign_port)
         self.start_btn.clicked.connect(self.start_connection)
         self.demo_mode_check.toggled.connect(self._on_demo_mode_toggled)
         self.smith_chart.contour_check.toggled.connect(self._on_contour_toggled)
@@ -620,7 +626,11 @@ class MainWindow(QMainWindow):
         port = port.strip()
         return port or None
 
-    def _baud_switch_port_candidates(self, preferred_port: str | None = None) -> list[str]:
+    def _baud_switch_port_candidates(
+        self,
+        preferred_port: str | None = None,
+        include_available_ports: bool = True,
+    ) -> list[str]:
         ordered: list[str] = []
         if preferred_port:
             ordered.append(preferred_port.strip())
@@ -630,7 +640,8 @@ class MainWindow(QMainWindow):
         combo_port = self.port.currentText().strip()
         if combo_port:
             ordered.append(combo_port)
-        ordered.extend(self.serial.ports())
+        if include_available_ports:
+            ordered.extend(self.serial.ports())
         candidates: list[str] = []
         for candidate in ordered:
             if not candidate:
@@ -648,10 +659,70 @@ class MainWindow(QMainWindow):
         self._update_controls_for_idle()
         self.append(f"COM scan complete: {self.port.count()} port(s) found")
 
+    def assign_port(self):
+        """Open user-assigned COM port and baud directly."""
+        port = self.port.currentText().strip()
+        if not port:
+            QMessageBox.warning(self, "Assign COM Port", "Please enter or select a COM port.")
+            return
+        try:
+            baudrate = int(self.baud.currentText().strip())
+        except ValueError:
+            QMessageBox.warning(self, "Assign COM Port", "Please select a valid baud rate.")
+            return
+
+        if not self.machine.transition(AppState.SCAN_EQUIPMENT, "Manual COM assignment"):
+            self.append("Cannot assign COM port while app is busy.")
+            return
+        if not self.machine.transition(AppState.CHECK_CONNECTION, "Opening assigned serial port"):
+            self.machine.transition(AppState.IDLE, "Assignment cancelled")
+            self.append("Cannot open assigned COM port right now.")
+            return
+
+        self.append(f"Assigning {port} @ {baudrate} baud...")
+        result = self.serial.connect(port, baudrate)
+        self.append(result.message)
+        if not result.ok:
+            self.machine.transition(AppState.ERROR, f"Assigned connection failed: {result.message}")
+            self.machine.transition(AppState.IDLE, "Assignment failed")
+            self._update_usb_state_label()
+            self._update_controls_for_idle()
+            return
+
+        self._active_baud = baudrate
+        self._manual_assignment_active = True
+        self.port.setCurrentText(port)
+        self.baud.setCurrentText(str(baudrate))
+        self._update_usb_state_label()
+
+        self.append(f"Assigned connection opened on {port} @ {baudrate} baud")
+        identity_ready = False
+        if not self._switch_to_low_speed(fail_on_error=False):
+            self.append("Assigned port opened, but failed to normalize to 57600 for EVC handshake")
+        elif not self._query_scan_identity(setup_device_log=True, fail_on_error=False):
+            self.append("Assigned port opened, but EVC identity/FACT mode handshake failed")
+        elif not self._switch_to_high_speed(allow_low_speed_fallback=True):
+            self.append("Assigned port opened, but failed to switch to run baud for contour")
+        else:
+            identity_ready = True
+            self.append(f"Handshake OK at {self._active_baud} baud")
+            self.port.setCurrentText(port)
+            self.baud.setCurrentText(str(self._active_baud))
+
+        self.machine.transition(AppState.GETTING_START, "Assigned serial port opened")
+        self.machine.transition(AppState.IDLE, "Ready for probe or run")
+        if identity_ready:
+            self._auto_download_contour_after_scan()
+            self.probe_btn.setEnabled(True)
+            self.port.setEnabled(False)
+            self.baud.setEnabled(False)
+            self.refresh_btn.setEnabled(False)
+        self._update_controls_for_idle()
+
     def start_connection(self):
         """Start connection with auto-scan and device selection."""
         self.start_btn.setEnabled(False)
-        self.append("Scanning COM ports for EVC devices...")
+        self.append("Scanning USB COM ports for EVC devices...")
         self.progress.setRange(0, 0)  # Indeterminate progress
         
         # Start scanning in background
@@ -730,6 +801,7 @@ class MainWindow(QMainWindow):
         result = self.serial.connect(device.port, device.baudrate)
         self.append(result.message)
         if result.ok:
+            self._manual_assignment_active = False
             self._active_baud = device.baudrate
         self._update_usb_state_label()
         if not result.ok:
@@ -1623,7 +1695,10 @@ class MainWindow(QMainWindow):
         self._update_usb_state_label()
         reconnect_error = ""
         verify_error = ""
-        for candidate_port in self._baud_switch_port_candidates(source_port):
+        for candidate_port in self._baud_switch_port_candidates(
+            source_port,
+            include_available_ports=not self._manual_assignment_active,
+        ):
             reconnect = self.serial.connect(candidate_port, HIGH_SPEED_BAUD, timeout=HANDSHAKE_TIMEOUT_S)
             self.append(reconnect.message)
             self._update_usb_state_label()
@@ -1660,7 +1735,10 @@ class MainWindow(QMainWindow):
                 return True
         self.serial.disconnect()
         self._update_usb_state_label()
-        for candidate_port in self._baud_switch_port_candidates(source_port):
+        for candidate_port in self._baud_switch_port_candidates(
+            source_port,
+            include_available_ports=not self._manual_assignment_active,
+        ):
             reconnect = self.serial.connect(candidate_port, LOW_SPEED_BAUD, timeout=HANDSHAKE_TIMEOUT_S)
             self.append(reconnect.message)
             self._update_usb_state_label()
@@ -1719,7 +1797,10 @@ class MainWindow(QMainWindow):
         self._update_usb_state_label()
         reconnect_error = ""
         verify_error = ""
-        for candidate_port in self._baud_switch_port_candidates(source_port):
+        for candidate_port in self._baud_switch_port_candidates(
+            source_port,
+            include_available_ports=not self._manual_assignment_active,
+        ):
             reconnect = self.serial.connect(candidate_port, LOW_SPEED_BAUD, timeout=HANDSHAKE_TIMEOUT_S)
             self.append(reconnect.message)
             self._update_usb_state_label()
@@ -1858,7 +1939,145 @@ class MainWindow(QMainWindow):
                 self.machine.transition(AppState.ERROR, message)
             self.append(message)
             return False
+        if not self._enter_fact_mode(fail_on_error=fail_on_error):
+            return False
         return True
+
+    def _enter_fact_mode(self, fail_on_error: bool) -> bool:
+        fact_result = self.serial.send_command(
+            FACT_MODE_COMMAND,
+            timeout=SCAN_COMMAND_TIMEOUT_S,
+            line_ending="\r",
+        )
+        if not fact_result.ok:
+            if fail_on_error:
+                self.machine.transition(AppState.ERROR, fact_result.message)
+            self.append(fact_result.message)
+            return False
+        fact_response = self._collect_trailing_serial_text(fact_result.response, wait_s=0.25)
+        self.append(f"fact response:\n{fact_response}")
+        if self._is_invalid_command_response(fact_response):
+            message = "FACT mode command rejected (Invalid Command)"
+            if fail_on_error:
+                self.machine.transition(AppState.ERROR, message)
+            self.append(message)
+            return False
+        ok, message, _ = self._send_hidden_password(FACT_MODE_PASSWORD, timeout=SCAN_COMMAND_TIMEOUT_S)
+        if not ok:
+            if fail_on_error:
+                self.machine.transition(AppState.ERROR, message)
+            self.append(message)
+            return False
+        verified, verify_message, _ = self._verify_fact_mode_access()
+        if not verified:
+            if fail_on_error:
+                self.machine.transition(AppState.ERROR, verify_message)
+            self.append(verify_message)
+            return False
+        self.append("FACT mode password accepted")
+        return True
+
+    def _verify_fact_mode_access(self) -> tuple[bool, str, str]:
+        band = "hf" if self._is_quantum_family() else "f1"
+        cmd = f"zpar show {band} 0 0 0 0"
+        result = self.serial.send_command(
+            cmd,
+            timeout=SCAN_COMMAND_TIMEOUT_S,
+            read_timeout=ZPAR_READ_TIMEOUT_S,
+            payload_quiet_period_s=ZPAR_PAYLOAD_QUIET_S,
+        )
+        if not result.ok:
+            return False, f"FACT mode verification failed: {result.message}", "transport"
+        parsed = self._parse_zpar_response(result.response)
+        if parsed:
+            return True, "FACT mode verified", "ok"
+        extended = self._extend_zpar_response(result.response)
+        if self._parse_zpar_response(extended):
+            return True, "FACT mode verified", "ok"
+        if self._looks_like_password_prompt_response(extended):
+            return False, "FACT mode verification indicates password prompt is still active", "needs_password"
+        if self._is_invalid_command_response(extended):
+            return False, "FACT mode verification failed: zpar is still invalid (likely user mode)", "invalid_command"
+        compact = " | ".join(line.strip() for line in extended.splitlines() if line.strip())
+        if compact:
+            return False, f"FACT mode verification failed: unexpected zpar response ({compact[:160]})", "unexpected"
+        return False, "FACT mode verification failed: empty zpar response", "empty"
+
+    @staticmethod
+    def _looks_like_password_prompt_response(response: str) -> bool:
+        lowered = response.lower()
+        if "pwd>" in lowered or "incorrect password" in lowered or "access denied" in lowered:
+            return True
+        star_count = response.count("*")
+        return star_count >= 4 and "z11" not in lowered and "z21" not in lowered and "z22" not in lowered
+
+    def _send_hidden_password(self, password: str, timeout: float) -> tuple[bool, str, str]:
+        serial_handle = getattr(self.serial, "_serial", None)
+        if not serial_handle or not getattr(serial_handle, "is_open", False):
+            return False, "Serial port is not connected", ""
+        old_timeout = serial_handle.timeout
+        lines: list[str] = []
+        deadline = time.monotonic() + timeout
+        try:
+            serial_handle.reset_input_buffer()
+            serial_handle.write(f"{password}\r".encode("ascii", errors="ignore"))
+            serial_handle.flush()
+            serial_handle.timeout = min(0.1, max(0.01, timeout / 2))
+            while time.monotonic() < deadline:
+                raw = serial_handle.readline()
+                if not raw:
+                    continue
+                line = raw.decode(errors="replace").strip()
+                if not line:
+                    continue
+                lines.append(line)
+                lowered = line.lower()
+                if "invalid password" in lowered or "access denied" in lowered:
+                    return False, "FACT mode password rejected", "\n".join(lines)
+            response = "\n".join(lines)
+            if "invalid password" in response.lower() or "access denied" in response.lower():
+                return False, "FACT mode password rejected", response
+            if "pwd>" in response.lower():
+                return False, "FACT mode password prompt still active", response
+            return True, "FACT mode password accepted", response
+        except Exception as exc:
+            return False, f"FACT mode password entry failed: {exc}", "\n".join(lines)
+        finally:
+            serial_handle.timeout = old_timeout
+
+    def _collect_trailing_serial_text(self, base_response: str, wait_s: float) -> str:
+        serial_handle = getattr(self.serial, "_serial", None)
+        if not serial_handle or not getattr(serial_handle, "is_open", False):
+            return base_response
+        old_timeout = getattr(serial_handle, "timeout", None)
+        lines = [line.strip() for line in base_response.splitlines() if line.strip()] if base_response else []
+        deadline = time.monotonic() + max(0.0, wait_s)
+        try:
+            serial_handle.timeout = 0.01
+            while time.monotonic() < deadline:
+                raw = serial_handle.readline()
+                if not raw:
+                    continue
+                line = raw.decode(errors="replace").strip()
+                if line:
+                    lines.append(line)
+        except Exception:
+            return base_response
+        finally:
+            serial_handle.timeout = old_timeout
+        return "\n".join(lines) if lines else base_response
+
+    def _exit_fact_mode_on_close(self):
+        if not self.serial.connected:
+            return
+        result = self.serial.send_command(FACT_MODE_OFF_COMMAND, timeout=SCAN_COMMAND_TIMEOUT_S)
+        if not result.ok:
+            self.append(f"Warning: failed to send '{FACT_MODE_OFF_COMMAND}' before exit: {result.message}")
+            return
+        if self._is_invalid_command_response(result.response):
+            self.append("FACT off skipped: unit is already in user mode")
+            return
+        self.append("FACT mode disabled (returned to user mode)")
 
     def _build_baud_scan_candidates(self) -> list[int]:
         candidates: list[int] = []
@@ -1942,7 +2161,7 @@ class MainWindow(QMainWindow):
     
     @Slot(bool)
     def _on_contour_toggled(self, enabled: bool):
-        """Handle contour checkbox toggle to load and plot Z-parameters."""
+        """Handle contour checkbox toggle using cached contour only."""
         if not enabled:
             self.smith_chart.show_contour(False)
             return
@@ -1958,26 +2177,8 @@ class MainWindow(QMainWindow):
             self.smith_chart.show_contour(True)
             return
 
-        if self.demo_mode_check.isChecked():
-            self.append("Demo mode can only show cached contour data; load contour on a real device first.")
-            self.smith_chart.contour_check.setChecked(False)
-            return
-
-        if not self.serial.connected:
-            self.append("Connect to device first to plot contour")
-            self.smith_chart.contour_check.setChecked(False)
-            return
-
-        if not self._switch_to_high_speed():
-            self.append("Cannot download contour: failed to switch to 230400 baud")
-            self.smith_chart.contour_check.setChecked(False)
-            return
-
-        if not self.machine.transition(AppState.DOWNLOADING_CONTOUR, "Downloading contour data"):
-            return
-        self.state_label.setText(AppState.DOWNLOADING_CONTOUR.name)
-        QApplication.processEvents()
-        self._load_and_plot_contour(show_after_load=True)
+        self.append("Contour cache is not available yet. Please use Scan USB to download contour first.")
+        self.smith_chart.contour_check.setChecked(False)
 
     def _auto_download_contour_after_scan(self):
         if self.demo_mode_check.isChecked():
@@ -2163,7 +2364,11 @@ class MainWindow(QMainWindow):
                         c2_coarse, c2_fine = self._cap_position_to_coarse_fine(c2_position)
                         cmd = f"zpar show {band} {c1_coarse} {c1_fine} {c2_coarse} {c2_fine}"
                         z_params = self._query_and_parse_zpar(cmd)
-                        
+                        current_query += 1
+                        if current_query % 10 == 0:
+                            self.progress.setValue(current_query)
+                            QApplication.processEvents()
+
                         if not z_params:
                             continue
 
@@ -2200,18 +2405,13 @@ class MainWindow(QMainWindow):
                                 "gamma_phase_deg": math.degrees(cmath.phase(gamma)),
                             }
                         )
-                        
-                        # Update progress bar every 10 queries to avoid blocking serial communication
-                        current_query += 1
-                        if current_query % 10 == 0:
-                            self.progress.setValue(current_query)
-                            QApplication.processEvents()
-                        
+
                         if line_name == "Line 3":
                             self.append(
                                 f"{band.upper()} {line_name} pct={pct:>3}% -> C1=({c1_coarse},{c1_fine}), C2=({c2_coarse},{c2_fine}) | "
                                 f"Z=({load_r:.3f},{load_x:.3f}) | gamma=({gamma.real:.4f},{gamma.imag:.4f}) | |gamma|={abs(gamma):.4f}"
                             )
+            self.progress.setValue(total_queries)
 
             if contour_rows:
                 export_path = self._export_contour_csv(contour_rows)
@@ -2312,17 +2512,50 @@ class MainWindow(QMainWindow):
                 read_timeout=ZPAR_READ_TIMEOUT_S,
                 payload_quiet_period_s=ZPAR_PAYLOAD_QUIET_S,
             )
-            if result.ok:
-                parsed = self._parse_zpar_response(result.response)
-                if parsed:
-                    return parsed
-            # Fallback to the original command strategy if the fast path fails.
-            fallback = self.serial.send_command(cmd)
-            if not fallback.ok:
+            if not result.ok:
                 return None
-            return self._parse_zpar_response(fallback.response)
+            parsed = self._parse_zpar_response(result.response)
+            if parsed:
+                return parsed
+            # Recover trailing payload without resending the command.
+            extended_response = self._extend_zpar_response(result.response)
+            parsed = self._parse_zpar_response(extended_response)
+            if parsed:
+                return parsed
+            if not self._zpar_parse_miss_logged:
+                compact = " | ".join(line.strip() for line in extended_response.splitlines() if line.strip())
+                if compact:
+                    self.append(f"zpar parse miss sample: {compact[:240]}")
+                self._zpar_parse_miss_logged = True
+            return None
         except Exception:
             return None
+
+    def _extend_zpar_response(self, base_response: str) -> str:
+        """Collect additional trailing serial lines for zpar parsing without command resend."""
+        serial_handle = getattr(self.serial, "_serial", None)
+        if not serial_handle or not getattr(serial_handle, "is_open", False):
+            return base_response
+        old_timeout = getattr(serial_handle, "timeout", None)
+        collected: list[str] = [base_response] if base_response else []
+        deadline = time.monotonic() + 0.12
+        try:
+            serial_handle.timeout = 0.01
+            while time.monotonic() < deadline:
+                raw = serial_handle.readline()
+                if not raw:
+                    continue
+                line = raw.decode(errors="replace").strip()
+                if line:
+                    collected.append(line)
+                    snapshot = "\n".join(collected)
+                    if self._parse_zpar_response(snapshot):
+                        return snapshot
+        except Exception:
+            return base_response
+        finally:
+            serial_handle.timeout = old_timeout
+        return "\n".join(collected) if collected else base_response
     
     @staticmethod
     def _parse_zpar_response(response: str) -> ZParameters | None:
@@ -2333,23 +2566,46 @@ class MainWindow(QMainWindow):
         """
         import re
         
-        number = r"([+-]?\d+(?:\.\d+)?)"
+        # Support integers, decimals, and scientific notation from different firmware formats.
+        number = r"([+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?)"
         try:
-            z11_match = re.search(rf"Z11\s*=\s*\(\s*{number}\s*,\s*{number}\s*\)", response, re.IGNORECASE)
-            z21_match = re.search(rf"Z21\s*=\s*\(\s*{number}\s*,\s*{number}\s*\)", response, re.IGNORECASE)
-            z12_match = re.search(rf"Z12\s*=\s*\(\s*{number}\s*,\s*{number}\s*\)", response, re.IGNORECASE)
-            z22_match = re.search(rf"Z22\s*=\s*\(\s*{number}\s*,\s*{number}\s*\)", response, re.IGNORECASE)
-            
-            if all([z11_match, z21_match, z12_match, z22_match]):
+            text = response.replace("\r", "\n")
+            def parse_pair(label: str) -> tuple[float, float] | None:
+                tuple_match = re.search(
+                    rf"{label}\s*[:=]\s*\(\s*{number}\s*,\s*{number}\s*\)",
+                    text,
+                    re.IGNORECASE,
+                )
+                if tuple_match:
+                    return float(tuple_match.group(1)), float(tuple_match.group(2))
+                j_match = re.search(
+                    rf"{label}\s*[:=]\s*{number}\s*([+-])\s*j\s*{number}",
+                    text,
+                    re.IGNORECASE,
+                )
+                if j_match:
+                    real = float(j_match.group(1))
+                    imag = float(j_match.group(3))
+                    if j_match.group(2) == "-":
+                        imag = -imag
+                    return real, imag
+                return None
+
+            z11 = parse_pair("Z11")
+            z21 = parse_pair("Z21")
+            z12 = parse_pair("Z12")
+            z22 = parse_pair("Z22")
+
+            if all([z11, z21, z12, z22]):
                 return ZParameters(
-                    z11_r=float(z11_match.group(1)),
-                    z11_i=float(z11_match.group(2)),
-                    z21_r=float(z21_match.group(1)),
-                    z21_i=float(z21_match.group(2)),
-                    z12_r=float(z12_match.group(1)),
-                    z12_i=float(z12_match.group(2)),
-                    z22_r=float(z22_match.group(1)),
-                    z22_i=float(z22_match.group(2)),
+                    z11_r=z11[0],
+                    z11_i=z11[1],
+                    z21_r=z21[0],
+                    z21_i=z21[1],
+                    z12_r=z12[0],
+                    z12_i=z12[1],
+                    z22_r=z22[0],
+                    z22_i=z22[1],
                 )
         except (ValueError, AttributeError):
             pass
@@ -2401,6 +2657,7 @@ class MainWindow(QMainWindow):
             if self.machine.state in (AppState.IDLE, AppState.ERROR):
                 self.machine.transition(AppState.CLEANUP, "Application closing")
             if self.serial.connected:
+                self._exit_fact_mode_on_close()
                 if not self._restore_low_speed_on_close():
                     self.append("Warning: Could not confirm baud restore to 57600 before exit")
             self.serial.disconnect()

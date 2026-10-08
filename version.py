@@ -1,6 +1,6 @@
 """Single source of truth for EVC GUI version information."""
 APP_NAME = "EVC GUI"
-__version__ = "26.0.10"
+__version__ = "26.0.11"
 VERSION = tuple(int(part) for part in __version__.split("."))
 COMPANY = "ASM"
 DEPARTMENT = "PEALD RF Engineering"
@@ -8,6 +8,11 @@ AUTHOR = "Victor Huang"
 CONTACT = "victor.huang@asm.com"
 
 VERSION_HISTORY = [
+    {
+        "version": "26.0.11",
+        "date": "2026-10-08",
+        "summary": "Serial workflow hardening: Assign/Scan USB flow now supports FACT mode login requirements for zpar on user-mode units, adds FACT-off on exit, improves ver/probe response reporting, and stabilizes contour pre-download/plot behavior.",
+    },
     {
         "version": "26.0.10",
         "date": "2026-10-07",

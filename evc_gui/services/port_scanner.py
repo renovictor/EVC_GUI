@@ -10,6 +10,11 @@ from evc_gui.services.serial_service import SerialService
 
 log = logging.getLogger(__name__)
 
+
+class PortUnavailableError(Exception):
+    """Raised when a COM port cannot be opened and should be skipped."""
+
+
 @dataclass(frozen=True)
 class DetectedDevice:
     """Represents a detected EVC device on a specific port."""
@@ -75,7 +80,11 @@ class PortScanner:
         Returns the detected device, or None if not found.
         """
         for baudrate in self.BAUD_CANDIDATES:
-            device = self._probe_port(port, baudrate)
+            try:
+                device = self._probe_port(port, baudrate)
+            except PortUnavailableError as exc:
+                log.warning("Skipping port %s for scan: %s", port, exc)
+                return None
             if device:
                 return device
             # Add delay between attempts to let device settle
@@ -97,6 +106,8 @@ class PortScanner:
             result = service.connect(port, baudrate, timeout=self.SCAN_TIMEOUT)
             if result.ok:
                 break
+            if self._is_non_retryable_open_failure(result.message):
+                raise PortUnavailableError(result.message)
             # If failed, wait briefly before retrying to avoid port contention
             if attempt < max_retries - 1:
                 time.sleep(0.05)
@@ -151,6 +162,18 @@ class PortScanner:
             )
         finally:
             service.disconnect()
+
+    @staticmethod
+    def _is_non_retryable_open_failure(message: str) -> bool:
+        if not message:
+            return False
+        text = message.lower()
+        return (
+            "could not open port" in text
+            or "semaphore timeout period has expired" in text
+            or "access is denied" in text
+            or "file not found" in text
+        )
     
     @staticmethod
     def _is_valid_ver_response(response: str) -> bool:
