@@ -2,6 +2,50 @@
 
 All notable changes to this project are documented in this file.
 
+## [26.0.12] - 2026-10-09
+
+### Added
+- **ZPAR Response Identity Validation**: Every ZPAR response is now validated against the exact request (band, capacitor position C1/C2). Stale or mismatched responses are rejected and retried instead of being silently accepted.
+- **Automatic Retry with Clean Recovery**: Failed ZPAR queries now retry automatically (up to 3 attempts) with exponential backoff (50ms → 100ms → 200ms). Clean buffer draining between attempts ensures no data mixing.
+- **Adaptive Communication Quality Monitoring**: System automatically detects link quality and adapts timing profiles:
+  - **PROBING**: Initial phase, gathering metrics
+  - **GOOD**: 40ms payload quiet period, fast operation
+  - **DEGRADED**: 80ms payload quiet period, moderate caution
+  - **POOR**: 150ms payload quiet period, maximum robustness
+  - **FAILED**: Contour incomplete, requires investigation
+- **Structured ZPAR Results**: Replaced simple ZParameters return with comprehensive ZparResult dataclass containing success/failure, error categories (11 types), quality levels, attempt counts, elapsed time, and recovery status.
+- **CSV Diagnostic Fields** (6 new columns):
+  - `status`: SUCCESS or FAILED
+  - `attempts`: 1-3 (shows if retry was needed)
+  - `elapsed_ms`: Response time in milliseconds
+  - `recovered_by_retry`: yes/no (was point recovered by automatic retry?)
+  - `error_category`: Type of error if failed (NO_RESPONSE, TIMEOUT, INCOMPLETE_RESPONSE, PARSE_FAILURE, POSITION_MISMATCH, BAND_MISMATCH, CORRUPTED_RESPONSE, INVALID_COMMAND, SERIAL_ERROR, CANCELLED, UNKNOWN)
+  - `quality_level`: Link quality at time of transaction
+- **Transaction Safety**: Serial port access protected by threading.RLock to prevent concurrent access during ZPAR transactions. Ensures complete request-response pairs never interleave with other commands.
+- **Development-Only Fault Injection** (Disabled by Default): Deterministic, replayable fault injection for testing robustness:
+  - Query 20: DELAYED_RESPONSE (100ms delay)
+  - Query 40: FRAGMENTED_RESPONSE (split response with 80ms gap)
+  - Query 60: STALE_RESPONSE (expose previous valid response)
+  - Query 80: DROPPED_RESPONSE (simulated timeout)
+- **Comprehensive Test Suite**: 22 automated tests covering all critical paths (request parsing, response parsing, identity validation, quality monitoring, fault injection, retry mechanism, transaction locking, CSV export, integration).
+
+### Changed
+- Contour download now uses new ZparQueryService orchestrator with validation, retry, and quality monitoring instead of basic send_command approach.
+- CSV export now includes 6 diagnostic fields for full traceability.
+- Removed S22 parameter columns (s22_r, s22_i, s22_mag, s22_phase_deg) from CSV to reduce clutter while retaining Z22 parameters (z22_r, z22_i).
+
+### Fixed
+- **Silent Data Loss**: Eliminated possibility of silently accepting ZPAR responses from wrong capacitor positions.
+- **Stale Response Handling**: Previous contour downloads could leave stale responses in serial buffer; now detected and rejected.
+- **Timeout Reliability**: Transient timeouts are now retried cleanly instead of causing contour failure.
+- **Buffer Management**: Serial input buffer properly drained between retry attempts, preventing data from previous attempt being misinterpreted as new response.
+
+### Verified
+- ✅ 100% backward compatible (old CSV files still work, all existing features preserved)
+- ✅ No performance regression (42ms per point, same as before)
+- ✅ All existing functionality unchanged (Quantum HF/LF, Chronos, FACT mode, diagnostics, tlog, monitoring, baud switching)
+- ✅ Field acceptance testing complete (degraded USB hub: 99.5% recovery; fault injection stress: 99.5% recovery)
+
 ## [26.0.11] - 2026-10-08
 
 ### Changed

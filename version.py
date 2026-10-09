@@ -1,6 +1,6 @@
 """Single source of truth for EVC GUI version information."""
 APP_NAME = "EVC GUI"
-__version__ = "26.0.11"
+__version__ = "26.0.12"
 VERSION = tuple(int(part) for part in __version__.split("."))
 COMPANY = "ASM"
 DEPARTMENT = "PEALD RF Engineering"
@@ -8,6 +8,11 @@ AUTHOR = "Victor Huang"
 CONTACT = "victor.huang@asm.com"
 
 VERSION_HISTORY = [
+    {
+        "version": "26.0.12",
+        "date": "2026-10-09",
+        "summary": "ZPAR reliability improvements: eliminates silent data loss by validating response identity (position/band matching), implements automatic retry with clean recovery (3 attempts, exponential backoff), adds adaptive communication quality monitoring (PROBING/GOOD/DEGRADED/POOR/FAILED), provides full diagnostics in CSV (status, attempts, elapsed_ms, recovered_by_retry, error_category, quality_level), ensures transaction safety with thread locks, and includes development-only deterministic fault injection (disabled by default).",
+    },
     {
         "version": "26.0.11",
         "date": "2026-10-08",
