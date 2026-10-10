@@ -1,6 +1,6 @@
 """Single source of truth for EVC GUI version information."""
 APP_NAME = "EVC GUI"
-__version__ = "26.0.12"
+__version__ = "26.0.13"
 VERSION = tuple(int(part) for part in __version__.split("."))
 COMPANY = "ASM"
 DEPARTMENT = "PEALD RF Engineering"
@@ -8,6 +8,11 @@ AUTHOR = "Victor Huang"
 CONTACT = "victor.huang@asm.com"
 
 VERSION_HISTORY = [
+    {
+        "version": "26.0.13",
+        "date": "2026-10-10",
+        "summary": "Developer contour tooling release: adds a new Developer tab with manual Download Contour control, configurable inter-command zpar delay (0-200 ms), per-download elapsed-time capture, quality display, and run history to compare link behavior across laptops and environments.",
+    },
     {
         "version": "26.0.12",
         "date": "2026-10-09",

@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## [26.0.13] - 2026-10-10
+
+### Added
+- New **Developer** tab with manual **Download Contour** button so contour can be fetched on-demand without waiting for auto-download after scan.
+- Configurable contour **inter-command delay** selector for `zpar` queries (`0/5/10/20/40/80/120/200 ms`) to support A/B comparison of communication robustness.
+- Contour download benchmark telemetry in UI:
+  - Last download elapsed time
+  - Last communication quality level
+  - Per-run timing history (timestamp, duration, delay, quality, loaded points)
+
+### Changed
+- Manual Developer download forces a fresh contour re-fetch (cache refresh) so repeated runs are directly comparable.
+- Contour CSV export now includes `inter_cmd_delay_ms` for offline correlation between selected delay and result quality.
+- Each contour run resets ZPAR quality session metrics before querying to keep quality/timing comparison isolated per run.
+
 ## [26.0.12] - 2026-10-09
 
 ### Added

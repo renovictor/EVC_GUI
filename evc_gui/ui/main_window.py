@@ -37,6 +37,7 @@ from evc_gui.logging_config import configure_logging, runtime_dir
 from evc_gui.services.phase2 import DataController, SerialWorker
 from evc_gui.services.serial_service import SerialService
 from evc_gui.services.port_scanner import PortScanner
+from evc_gui.services.zpar_query_service import ZparQueryService
 from evc_gui.state_machine import AppState, EvcStateMachine
 from evc_gui.ui.power_scope import PowerScopeWidget
 from evc_gui.ui.smith_chart import (
@@ -92,6 +93,7 @@ SCAN_VER_RETRY_COUNT = 3
 ZPAR_COMMAND_TIMEOUT_S = 0.5
 ZPAR_READ_TIMEOUT_S = 0.01
 ZPAR_PAYLOAD_QUIET_S = 0.03
+CONTOUR_INTER_COMMAND_DELAY_OPTIONS_MS = (0, 5, 10, 20, 40, 80, 120, 200)
 TLOG_TIMEOUT_S = 300.0
 TLOG_MAX_PARTS = 6
 TYKON_FAULT_EXPLANATIONS = {
@@ -363,6 +365,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.log_file = log_file
         self.serial = SerialService()
+        self.zpar_query_service = ZparQueryService(self.serial)  # New ZPAR service
         self.port_scanner = PortScanner()
         self.machine = EvcStateMachine()
         self.machine.state_changed.connect(self.on_state_changed)
@@ -390,6 +393,9 @@ class MainWindow(QMainWindow):
         self._run_ui_sample_counter = 0
         self._run_mode = "log1"
         self._zpar_parse_miss_logged = False
+        self._contour_inter_command_delay_s = 0.0
+        self._last_contour_download_seconds: float | None = None
+        self._last_contour_download_quality = "PROBING"
         self._chart_timer = QTimer(self)
         self._chart_timer.setInterval(250)
         self._chart_timer.timeout.connect(self._refresh_scope)
@@ -563,6 +569,29 @@ class MainWindow(QMainWindow):
         troubleshoot_layout.addLayout(content_layout, 1)
         tabs.addTab(troubleshoot_page, "Troubleshoot")
 
+        developer_page = QWidget()
+        developer_layout = QVBoxLayout(developer_page)
+        developer_controls = QGridLayout()
+        self.download_contour_btn = QPushButton("Download Contour")
+        self.contour_delay_combo = QComboBox()
+        self.contour_delay_combo.addItems([f"{delay} ms" for delay in CONTOUR_INTER_COMMAND_DELAY_OPTIONS_MS])
+        self.contour_delay_combo.setCurrentText("0 ms")
+        self.contour_time_value = QLabel("-")
+        self.contour_quality_value = QLabel("-")
+        developer_controls.addWidget(QLabel("Inter-command Delay"), 0, 0)
+        developer_controls.addWidget(self.contour_delay_combo, 0, 1)
+        developer_controls.addWidget(self.download_contour_btn, 1, 0, 1, 2)
+        developer_controls.addWidget(QLabel("Last Download Time"), 2, 0)
+        developer_controls.addWidget(self.contour_time_value, 2, 1)
+        developer_controls.addWidget(QLabel("Last Quality"), 3, 0)
+        developer_controls.addWidget(self.contour_quality_value, 3, 1)
+        developer_layout.addLayout(developer_controls)
+        self.contour_history = QPlainTextEdit()
+        self.contour_history.setReadOnly(True)
+        self.contour_history.setPlaceholderText("Contour download timing history will appear here.")
+        developer_layout.addWidget(self.contour_history, 1)
+        tabs.addTab(developer_page, "Developer")
+
         self.refresh_btn.clicked.connect(self.assign_port)
         self.start_btn.clicked.connect(self.start_connection)
         self.demo_mode_check.toggled.connect(self._on_demo_mode_toggled)
@@ -577,6 +606,8 @@ class MainWindow(QMainWindow):
         self.log1_btn.clicked.connect(self.run_log1)
         self.log2_btn.clicked.connect(self.run_log2)
         self.log3_btn.clicked.connect(self.run_log3)
+        self.download_contour_btn.clicked.connect(self._on_download_contour_clicked)
+        self.contour_delay_combo.currentIndexChanged.connect(self._on_contour_delay_changed)
         self.abort_btn.clicked.connect(self.abort)
         self.exit_btn.clicked.connect(self.close)
         self.setStyleSheet(
@@ -2158,6 +2189,41 @@ class MainWindow(QMainWindow):
     def _on_demo_mode_toggled(self, enabled: bool):
         self.smith_chart.set_demo_mode(enabled)
         self._update_controls_for_idle()
+
+    @Slot()
+    def _on_download_contour_clicked(self):
+        if self.demo_mode_check.isChecked():
+            self.append("Developer contour download skipped: demo mode is enabled.")
+            return
+        if not self.serial.connected:
+            self.append("Developer contour download skipped: serial is not connected.")
+            return
+        if self.machine.state != AppState.IDLE:
+            self.append(f"Developer contour download skipped: app is busy ({self.machine.state.name}).")
+            return
+        if not self._switch_to_high_speed():
+            self.append("Developer contour download skipped: unable to switch to 230400 baud")
+            return
+        if not self.machine.transition(AppState.DOWNLOADING_CONTOUR, "Developer contour download"):
+            self.append("Developer contour download skipped: state transition rejected.")
+            return
+        self.state_label.setText(AppState.DOWNLOADING_CONTOUR.name)
+        QApplication.processEvents()
+        delay_ms = int(round(self._contour_inter_command_delay_s * 1000))
+        self.append(f"Developer contour download requested (inter-command delay: {delay_ms} ms)")
+        self._load_and_plot_contour(
+            show_after_load=self.smith_chart.contour_check.isChecked(),
+            force_refresh=True,
+        )
+
+    @Slot()
+    def _on_contour_delay_changed(self):
+        text = self.contour_delay_combo.currentText().strip().lower()
+        try:
+            delay_ms = int(text.replace("ms", "").strip())
+        except ValueError:
+            delay_ms = 0
+        self._contour_inter_command_delay_s = max(0.0, delay_ms / 1000.0)
     
     @Slot(bool)
     def _on_contour_toggled(self, enabled: bool):
@@ -2201,12 +2267,14 @@ class MainWindow(QMainWindow):
         self._update_usb_state_label()
         demo_mode = self.demo_mode_check.isChecked()
         if self.machine.state == AppState.RUN:
+            self.download_contour_btn.setEnabled(False)
             return
         if self.machine.state == AppState.DOWNLOADING_CONTOUR:
             self.log1_btn.setEnabled(False)
             self.log2_btn.setEnabled(False)
             self.log3_btn.setEnabled(False)
             self.probe_btn.setEnabled(False)
+            self.download_contour_btn.setEnabled(False)
             return
         if self.machine.state == AppState.DOWNLOADING_DIAGNOSTIC:
             self.start_btn.setEnabled(False)
@@ -2225,6 +2293,7 @@ class MainWindow(QMainWindow):
             self.adv_diag_btn.setEnabled(False)
             self.button_a.setEnabled(False)
             self.button_b.setEnabled(False)
+            self.download_contour_btn.setEnabled(False)
             return
         if self._tlog2chart_worker and self._tlog2chart_worker.isRunning():
             connected = self.serial.connected
@@ -2239,6 +2308,7 @@ class MainWindow(QMainWindow):
             self.adv_diag_btn.setEnabled(connected)
             self.button_a.setEnabled(False)
             self.button_b.setEnabled(connected)
+            self.download_contour_btn.setEnabled(False)
             return
         connected = self.serial.connected
         self.log1_btn.setEnabled(demo_mode or connected)
@@ -2253,6 +2323,7 @@ class MainWindow(QMainWindow):
         self.adv_diag_btn.setEnabled(connected)
         self.button_a.setEnabled(connected)
         self.button_b.setEnabled(connected)
+        self.download_contour_btn.setEnabled((not demo_mode) and connected)
     
     def _cap_grid_limits(self) -> tuple[int, int]:
         """Return (max_coarse, max_fine) for the connected product family."""
@@ -2312,9 +2383,12 @@ class MainWindow(QMainWindow):
         coarse, fine = divmod(position, fine_span)
         return min(coarse, max_coarse), min(fine, max_fine)
 
-    def _load_and_plot_contour(self, show_after_load: bool = True):
+    def _load_and_plot_contour(self, show_after_load: bool = True, force_refresh: bool = False):
         """Download contour data once, cache it, then plot from cache."""
-        if self.smith_chart._contour_cache:
+        if force_refresh:
+            self.smith_chart.set_contour_cache({})
+            self.smith_chart.show_contour(False)
+        elif self.smith_chart._contour_cache:
             self.smith_chart.show_contour(show_after_load)
             self.append("Contour cache already loaded; plotting from cached data.")
             return
@@ -2327,6 +2401,12 @@ class MainWindow(QMainWindow):
         # Show progress bar with indeterminate animation
         self.progress.setRange(0, 0)
         self.progress.show()
+
+        self.zpar_query_service.reset_session()
+        download_start = time.monotonic()
+        inter_command_delay_ms = int(round(self._contour_inter_command_delay_s * 1000))
+        loaded_point_count = 0
+        self.append(f"Contour inter-command delay: {inter_command_delay_ms} ms")
 
         try:
             z_params_list = []
@@ -2363,15 +2443,20 @@ class MainWindow(QMainWindow):
                         c1_coarse, c1_fine = self._cap_position_to_coarse_fine(c1_position)
                         c2_coarse, c2_fine = self._cap_position_to_coarse_fine(c2_position)
                         cmd = f"zpar show {band} {c1_coarse} {c1_fine} {c2_coarse} {c2_fine}"
-                        z_params = self._query_and_parse_zpar(cmd)
+                        
+                        # Use new ZPAR query service with validation and retry
+                        result = self.zpar_query_service.query_zpar(cmd)
+                        if self._contour_inter_command_delay_s > 0:
+                            time.sleep(self._contour_inter_command_delay_s)
                         current_query += 1
                         if current_query % 10 == 0:
                             self.progress.setValue(current_query)
                             QApplication.processEvents()
 
-                        if not z_params:
+                        if not result.success or not result.z_params:
                             continue
 
+                        z_params = result.z_params
                         z_params_list.append(z_params)
                         load_r, load_x = calculate_load_impedance_from_z_params(z_params)
                         gamma = impedance_to_gamma(load_r, load_x)
@@ -2393,16 +2478,20 @@ class MainWindow(QMainWindow):
                                 "z12_i": z_params.z12_i,
                                 "z22_r": z_params.z22_r,
                                 "z22_i": z_params.z22_i,
-                                "s22_r": z_params.z22_r,
-                                "s22_i": z_params.z22_i,
-                                "s22_mag": abs(complex(z_params.z22_r, z_params.z22_i)),
-                                "s22_phase_deg": math.degrees(cmath.phase(complex(z_params.z22_r, z_params.z22_i))),
                                 "z_load_r": load_r,
                                 "z_load_x": load_x,
                                 "gamma_real": gamma.real,
                                 "gamma_imag": gamma.imag,
                                 "gamma_mag": abs(gamma),
                                 "gamma_phase_deg": math.degrees(cmath.phase(gamma)),
+                                # New diagnostic fields
+                                "status": "SUCCESS" if result.success else "FAILED",
+                                "attempts": result.attempt_count,
+                                "elapsed_ms": f"{result.elapsed_ms:.2f}",
+                                "recovered_by_retry": "yes" if result.recovered_by_retry else "no",
+                                "error_category": result.error_category.value if result.error_category else "",
+                                "quality_level": result.quality_level.value if result.quality_level else "",
+                                "inter_cmd_delay_ms": inter_command_delay_ms,
                             }
                         )
 
@@ -2412,11 +2501,17 @@ class MainWindow(QMainWindow):
                                 f"Z=({load_r:.3f},{load_x:.3f}) | gamma=({gamma.real:.4f},{gamma.imag:.4f}) | |gamma|={abs(gamma):.4f}"
                             )
             self.progress.setValue(total_queries)
+            loaded_point_count = len(z_params_list)
 
             if contour_rows:
                 export_path = self._export_contour_csv(contour_rows)
                 self.append(f"Contour CSV exported: {export_path}")
                 self.append(f"Loaded {len(z_params_list)} Z-parameter edge points for contour")
+                
+                # Log communication quality summary
+                quality_summary = self.zpar_query_service.get_quality_summary()
+                self.append(f"Communication Quality Summary:\n{quality_summary}")
+                
                 groups = {}
                 for row in contour_rows:
                     key = f"{row.get('band', 'F1')} {row['line']}" if self._is_quantum_family() else row["line"]
@@ -2452,6 +2547,21 @@ class MainWindow(QMainWindow):
                 self.append("No Z-parameters loaded - contour plot failed")
                 self.smith_chart.contour_check.setChecked(False)
         finally:
+            elapsed_s = time.monotonic() - download_start
+            self._last_contour_download_seconds = elapsed_s
+            quality = self.zpar_query_service.get_quality_level().value
+            self._last_contour_download_quality = quality
+            self.contour_time_value.setText(f"{elapsed_s:.2f} s")
+            self.contour_quality_value.setText(quality)
+            history_line = (
+                f"{datetime.now().strftime('%H:%M:%S')} | {elapsed_s:.2f}s | "
+                f"delay={inter_command_delay_ms}ms | quality={quality} | points={loaded_point_count}"
+            )
+            self.contour_history.appendPlainText(history_line)
+            self.append(
+                f"Contour download timing: {elapsed_s:.2f}s "
+                f"(delay {inter_command_delay_ms} ms, quality {quality}, points {loaded_point_count})"
+            )
             QApplication.restoreOverrideCursor()
             self.setEnabled(True)
             self.progress.hide()  # Hide progress bar after download completes
@@ -2475,6 +2585,15 @@ class MainWindow(QMainWindow):
             "c2_coarse",
             "c2_fine",
             "cmd",
+            # Diagnostic fields
+            "status",
+            "attempts",
+            "elapsed_ms",
+            "recovered_by_retry",
+            "error_category",
+            "quality_level",
+            "inter_cmd_delay_ms",
+            # Z-parameters
             "z11_r",
             "z11_i",
             "z21_r",
@@ -2483,10 +2602,6 @@ class MainWindow(QMainWindow):
             "z12_i",
             "z22_r",
             "z22_i",
-            "s22_r",
-            "s22_i",
-            "s22_mag",
-            "s22_phase_deg",
             "z_load_r",
             "z_load_x",
             "gamma_real",
