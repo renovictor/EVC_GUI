@@ -2,18 +2,37 @@
 
 All notable changes to this project are documented in this file.
 
+## [26.0.15] - 2026-10-10
+
+### Added
+- Communication Quality Summary now always includes four diagnostic counters:
+  - `Parse failures`
+  - `Incomplete responses`
+  - `Position mismatches`
+  - `Timeouts`
+- New reliability tests validating summary counter behavior for:
+  - clean 204-point run (all counters remain zero)
+  - parse failure then successful retry
+  - incomplete response then successful retry
+  - position mismatch then successful retry
+  - timeout then successful retry
+  - mixed failures before successful recovery
+
+### Changed
+- Diagnostic counters are now counted as **attempt-level communication events** (not just final request outcomes), so transient failures are still visible even when a later retry succeeds.
+
 ## [26.0.14] - 2026-10-10
 
 ### Added
-- New **40 Scan Test** button in Developer tab to automatically execute all **40 combinations** of contour download settings:
+- New **20 Scan Test** button in Developer tab to automatically execute all **20 combinations** of contour download settings:
   - Timing profiles: `PROBING / GOOD / DEGRADED / POOR / FAILED`
-  - Delays: `0 / 5 / 10 / 20 / 40 / 80 / 120 / 200 ms`
-- 40-run sweep summary output including profile, delay, elapsed time, quality, and loaded contour points for each run.
+  - Delays: `0 / 5 / 10 / 20 ms`
+- 20-run sweep summary output including profile, delay, elapsed time, quality, and loaded contour points for each run.
 
 ### Changed
 - Renamed **Download Contour** to **Single Download Contour**.
-- Renamed **Scan Test** to **8 Delay Scan Test**.
-- 8-delay test behavior remains fixed to the user-selected timing profile.
+- Renamed **Scan Test** to **4 Delay Scan Test**.
+- 4-delay test behavior remains fixed to the user-selected timing profile.
 
 ## [26.0.13] - 2026-10-10
 

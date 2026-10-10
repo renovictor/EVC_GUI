@@ -88,7 +88,7 @@ class ZparQueryService:
             if fault_config and fault_config.fault_type == FaultType.STALE_RESPONSE:
                 if self.last_valid_response:
                     log.info("[FAULT INJECTION] Returning stale response for query %d", self.query_index)
-                    return ZparResult(
+                    result = ZparResult(
                         success=False,
                         requested=request,
                         error_category=ZparErrorCategory.POSITION_MISMATCH,
@@ -98,6 +98,8 @@ class ZparQueryService:
                         quality_level=self.quality_monitor.get_current_quality(),
                         timing_profile_name=timing_profile.name,
                     )
+                    self.quality_monitor.record_failure_event(result.error_category)
+                    return result
             
             # Clean the input buffer before send
             if attempt_num > 1:
@@ -129,6 +131,7 @@ class ZparQueryService:
                     quality_level=self.quality_monitor.get_current_quality(),
                     timing_profile_name=timing_profile.name,
                 )
+                self.quality_monitor.record_failure_event(result.error_category)
                 if attempt_num < MAX_RETRY_ATTEMPTS:
                     self._apply_retry_backoff(attempt_num)
                 continue
@@ -151,6 +154,8 @@ class ZparQueryService:
                 get_fault_injector().record_valid_response(cmd_result.response)
                 self.quality_monitor.record_result(result)
                 return result
+
+            self.quality_monitor.record_failure_event(result.error_category)
             
             # Check if error is retryable
             if not self._is_retryable_error(result.error_category):

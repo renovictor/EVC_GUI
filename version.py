@@ -1,6 +1,6 @@
 """Single source of truth for EVC GUI version information."""
 APP_NAME = "EVC GUI"
-__version__ = "26.0.14"
+__version__ = "26.0.15"
 VERSION = tuple(int(part) for part in __version__.split("."))
 COMPANY = "ASM"
 DEPARTMENT = "PEALD RF Engineering"
@@ -9,9 +9,14 @@ CONTACT = "victor.huang@asm.com"
 
 VERSION_HISTORY = [
     {
+        "version": "26.0.15",
+        "date": "2026-10-10",
+        "summary": "ZPAR communication diagnostics enhancement: Communication Quality Summary now always reports Parse failures, Incomplete responses, Position mismatches, and Timeouts as attempt-level event counters (including retry-recovered points), with reset per contour download and reliability tests covering clean, single-failure-recovery, and mixed-failure-recovery flows.",
+    },
+    {
         "version": "26.0.14",
         "date": "2026-10-10",
-        "summary": "Developer scan matrix release: renames contour actions to Single Download Contour and 8 Delay Scan Test, adds timing profile selector support for fixed-profile testing, and introduces 40 Scan Test to run all 40 combinations (5 timing profiles x 8 delay steps) with per-run timing/quality/point summary output.",
+        "summary": "Developer scan matrix release: renames contour actions to Single Download Contour and 4 Delay Scan Test, adds timing profile selector support for fixed-profile testing, and introduces 20 Scan Test to run all 20 combinations (5 timing profiles x 4 delay steps) with per-run timing/quality/point summary output.",
     },
     {
         "version": "26.0.13",

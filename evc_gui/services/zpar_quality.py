@@ -75,6 +75,11 @@ class QualityMetrics:
     position_mismatch_count: int = 0
     band_mismatch_count: int = 0
     unrecoverable_failures: int = 0
+    # Attempt-level diagnostic event counters (counted per failed attempt)
+    timeout_events: int = 0
+    incomplete_response_events: int = 0
+    parse_failure_events: int = 0
+    position_mismatch_events: int = 0
     
     # Response times in milliseconds
     response_times: deque = field(default_factory=lambda: deque(maxlen=100))
@@ -109,6 +114,17 @@ class QualityMetrics:
             self.band_mismatch_count += 1
         else:
             self.unrecoverable_failures += 1
+
+    def add_failure_event(self, error_category: ZparErrorCategory):
+        """Record failed-attempt diagnostic events without affecting request totals."""
+        if error_category == ZparErrorCategory.TIMEOUT:
+            self.timeout_events += 1
+        elif error_category == ZparErrorCategory.INCOMPLETE_RESPONSE:
+            self.incomplete_response_events += 1
+        elif error_category == ZparErrorCategory.PARSE_FAILURE:
+            self.parse_failure_events += 1
+        elif error_category == ZparErrorCategory.POSITION_MISMATCH:
+            self.position_mismatch_events += 1
     
     def success_rate(self) -> float:
         """Return percentage of successful requests (0-100)."""
@@ -199,6 +215,10 @@ class CommunicationQualityMonitor:
         """Get current timing profile for ZPAR transactions."""
         active_quality = self.forced_quality or self.current_quality
         return TIMING_PROFILES[active_quality]
+
+    def record_failure_event(self, error_category: ZparErrorCategory):
+        """Record one failed-attempt event for diagnostics summary counters."""
+        self.metrics.add_failure_event(error_category)
     
     def get_current_quality(self) -> CommunicationQuality:
         """Get current quality level."""
@@ -300,18 +320,14 @@ class CommunicationQualityMonitor:
             f"Successful responses: {self.metrics.successful_requests}",
             f"First-attempt successes: {self.metrics.first_attempt_successes}",
             f"Recovered by retry: {self.metrics.retry_count}",
+            f"Parse failures: {self.metrics.parse_failure_events}",
+            f"Incomplete responses: {self.metrics.incomplete_response_events}",
+            f"Position mismatches: {self.metrics.position_mismatch_events}",
+            f"Timeouts: {self.metrics.timeout_events}",
             f"Success rate: {self.metrics.success_rate():.1f}%",
             f"First-attempt rate: {self.metrics.first_attempt_rate():.1f}%",
         ]
-        
-        if self.metrics.timeout_count > 0:
-            lines.append(f"Timeouts: {self.metrics.timeout_count}")
-        if self.metrics.incomplete_response_count > 0:
-            lines.append(f"Incomplete responses: {self.metrics.incomplete_response_count}")
-        if self.metrics.parse_failure_count > 0:
-            lines.append(f"Parse failures: {self.metrics.parse_failure_count}")
-        if self.metrics.position_mismatch_count > 0:
-            lines.append(f"Position mismatches: {self.metrics.position_mismatch_count}")
+
         if self.metrics.band_mismatch_count > 0:
             lines.append(f"Band mismatches: {self.metrics.band_mismatch_count}")
         if self.metrics.unrecoverable_failures > 0:
