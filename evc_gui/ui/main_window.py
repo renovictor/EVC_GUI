@@ -94,6 +94,7 @@ ZPAR_COMMAND_TIMEOUT_S = 0.5
 ZPAR_READ_TIMEOUT_S = 0.01
 ZPAR_PAYLOAD_QUIET_S = 0.03
 CONTOUR_INTER_COMMAND_DELAY_OPTIONS_MS = (0, 5, 10, 20, 40, 80, 120, 200)
+TIMING_PROFILE_OPTIONS = ("AUTO", "PROBING", "GOOD", "DEGRADED", "POOR", "FAILED")
 TLOG_TIMEOUT_S = 300.0
 TLOG_MAX_PARTS = 6
 TYKON_FAULT_EXPLANATIONS = {
@@ -394,6 +395,7 @@ class MainWindow(QMainWindow):
         self._run_mode = "log1"
         self._zpar_parse_miss_logged = False
         self._contour_inter_command_delay_s = 0.0
+        self._contour_timing_profile_name = "AUTO"
         self._last_contour_download_seconds: float | None = None
         self._last_contour_download_quality = "PROBING"
         self._chart_timer = QTimer(self)
@@ -572,19 +574,28 @@ class MainWindow(QMainWindow):
         developer_page = QWidget()
         developer_layout = QVBoxLayout(developer_page)
         developer_controls = QGridLayout()
-        self.download_contour_btn = QPushButton("Download Contour")
+        self.download_contour_btn = QPushButton("Single Download Contour")
+        self.scan_test_btn = QPushButton("8 Delay Scan Test")
+        self.scan_test_40_btn = QPushButton("40 Scan Test")
         self.contour_delay_combo = QComboBox()
         self.contour_delay_combo.addItems([f"{delay} ms" for delay in CONTOUR_INTER_COMMAND_DELAY_OPTIONS_MS])
         self.contour_delay_combo.setCurrentText("0 ms")
+        self.contour_profile_combo = QComboBox()
+        self.contour_profile_combo.addItems(list(TIMING_PROFILE_OPTIONS))
+        self.contour_profile_combo.setCurrentText("AUTO")
         self.contour_time_value = QLabel("-")
         self.contour_quality_value = QLabel("-")
         developer_controls.addWidget(QLabel("Inter-command Delay"), 0, 0)
         developer_controls.addWidget(self.contour_delay_combo, 0, 1)
-        developer_controls.addWidget(self.download_contour_btn, 1, 0, 1, 2)
-        developer_controls.addWidget(QLabel("Last Download Time"), 2, 0)
-        developer_controls.addWidget(self.contour_time_value, 2, 1)
-        developer_controls.addWidget(QLabel("Last Quality"), 3, 0)
-        developer_controls.addWidget(self.contour_quality_value, 3, 1)
+        developer_controls.addWidget(QLabel("Timing Profile"), 1, 0)
+        developer_controls.addWidget(self.contour_profile_combo, 1, 1)
+        developer_controls.addWidget(self.download_contour_btn, 2, 0)
+        developer_controls.addWidget(self.scan_test_btn, 2, 1)
+        developer_controls.addWidget(self.scan_test_40_btn, 2, 2)
+        developer_controls.addWidget(QLabel("Last Download Time"), 3, 0)
+        developer_controls.addWidget(self.contour_time_value, 3, 1)
+        developer_controls.addWidget(QLabel("Last Quality"), 4, 0)
+        developer_controls.addWidget(self.contour_quality_value, 4, 1)
         developer_layout.addLayout(developer_controls)
         self.contour_history = QPlainTextEdit()
         self.contour_history.setReadOnly(True)
@@ -607,7 +618,10 @@ class MainWindow(QMainWindow):
         self.log2_btn.clicked.connect(self.run_log2)
         self.log3_btn.clicked.connect(self.run_log3)
         self.download_contour_btn.clicked.connect(self._on_download_contour_clicked)
+        self.scan_test_btn.clicked.connect(self._on_8_delay_scan_test_clicked)
+        self.scan_test_40_btn.clicked.connect(self._on_40_scan_test_clicked)
         self.contour_delay_combo.currentIndexChanged.connect(self._on_contour_delay_changed)
+        self.contour_profile_combo.currentIndexChanged.connect(self._on_contour_profile_changed)
         self.abort_btn.clicked.connect(self.abort)
         self.exit_btn.clicked.connect(self.close)
         self.setStyleSheet(
@@ -2217,6 +2231,130 @@ class MainWindow(QMainWindow):
         )
 
     @Slot()
+    def _on_8_delay_scan_test_clicked(self):
+        if self.demo_mode_check.isChecked():
+            self.append("Developer 8-delay scan test skipped: demo mode is enabled.")
+            return
+        if not self.serial.connected:
+            self.append("Developer 8-delay scan test skipped: serial is not connected.")
+            return
+        if self.machine.state != AppState.IDLE:
+            self.append(f"Developer 8-delay scan test skipped: app is busy ({self.machine.state.name}).")
+            return
+        if not self._switch_to_high_speed():
+            self.append("Developer 8-delay scan test skipped: unable to switch to 230400 baud")
+            return
+
+        selected_profile = self._contour_timing_profile_name
+        try:
+            self.zpar_query_service.set_forced_timing_profile(selected_profile)
+        except ValueError as exc:
+            self.append(str(exc))
+            return
+
+        original_delay_text = self.contour_delay_combo.currentText()
+        test_results: list[tuple[int, float, str, int]] = []
+        self.append(
+            f"Starting 8-delay scan test across {len(CONTOUR_INTER_COMMAND_DELAY_OPTIONS_MS)} delays "
+            f"(profile {selected_profile})..."
+        )
+
+        try:
+            for idx, delay_ms in enumerate(CONTOUR_INTER_COMMAND_DELAY_OPTIONS_MS, start=1):
+                self.contour_delay_combo.setCurrentText(f"{delay_ms} ms")
+                if not self.machine.transition(AppState.DOWNLOADING_CONTOUR, f"Scan test delay {delay_ms} ms"):
+                    self.append(f"8-delay scan test stopped: state transition rejected at {delay_ms} ms.")
+                    break
+                self.state_label.setText(AppState.DOWNLOADING_CONTOUR.name)
+                QApplication.processEvents()
+                self.append(
+                    f"8-delay scan test {idx}/{len(CONTOUR_INTER_COMMAND_DELAY_OPTIONS_MS)}: "
+                    f"delay={delay_ms} ms, profile={selected_profile}"
+                )
+                self._load_and_plot_contour(
+                    show_after_load=self.smith_chart.contour_check.isChecked(),
+                    force_refresh=True,
+                )
+                elapsed_s = self._last_contour_download_seconds or 0.0
+                quality = self._last_contour_download_quality
+                points = sum(len(items) for items in self.smith_chart._contour_cache.values())
+                test_results.append((delay_ms, elapsed_s, quality, points))
+
+            if test_results:
+                self.append("8-delay scan test summary:")
+                for delay_ms, elapsed_s, quality, points in test_results:
+                    self.append(
+                        f"  delay={delay_ms:>3} ms | time={elapsed_s:.2f}s | "
+                        f"quality={quality} | points={points}"
+                    )
+        finally:
+            self.contour_delay_combo.setCurrentText(original_delay_text)
+
+    @Slot()
+    def _on_40_scan_test_clicked(self):
+        if self.demo_mode_check.isChecked():
+            self.append("Developer 40-scan test skipped: demo mode is enabled.")
+            return
+        if not self.serial.connected:
+            self.append("Developer 40-scan test skipped: serial is not connected.")
+            return
+        if self.machine.state != AppState.IDLE:
+            self.append(f"Developer 40-scan test skipped: app is busy ({self.machine.state.name}).")
+            return
+        if not self._switch_to_high_speed():
+            self.append("Developer 40-scan test skipped: unable to switch to 230400 baud")
+            return
+
+        original_delay_text = self.contour_delay_combo.currentText()
+        original_profile_text = self.contour_profile_combo.currentText()
+        fixed_profiles = [p for p in TIMING_PROFILE_OPTIONS if p != "AUTO"]
+        total_runs = len(fixed_profiles) * len(CONTOUR_INTER_COMMAND_DELAY_OPTIONS_MS)
+        run_idx = 0
+        test_results: list[tuple[str, int, float, str, int]] = []
+        self.append(f"Starting 40-scan test ({len(fixed_profiles)} profiles x {len(CONTOUR_INTER_COMMAND_DELAY_OPTIONS_MS)} delays)...")
+
+        try:
+            for profile_name in fixed_profiles:
+                self.contour_profile_combo.setCurrentText(profile_name)
+                for delay_ms in CONTOUR_INTER_COMMAND_DELAY_OPTIONS_MS:
+                    run_idx += 1
+                    self.contour_delay_combo.setCurrentText(f"{delay_ms} ms")
+                    if not self.machine.transition(
+                        AppState.DOWNLOADING_CONTOUR,
+                        f"40 scan test {profile_name} {delay_ms} ms",
+                    ):
+                        self.append(
+                            f"40-scan test stopped: state transition rejected at "
+                            f"profile={profile_name}, delay={delay_ms} ms."
+                        )
+                        return
+                    self.state_label.setText(AppState.DOWNLOADING_CONTOUR.name)
+                    QApplication.processEvents()
+                    self.append(
+                        f"40-scan test {run_idx}/{total_runs}: "
+                        f"profile={profile_name}, delay={delay_ms} ms"
+                    )
+                    self._load_and_plot_contour(
+                        show_after_load=self.smith_chart.contour_check.isChecked(),
+                        force_refresh=True,
+                    )
+                    elapsed_s = self._last_contour_download_seconds or 0.0
+                    quality = self._last_contour_download_quality
+                    points = sum(len(items) for items in self.smith_chart._contour_cache.values())
+                    test_results.append((profile_name, delay_ms, elapsed_s, quality, points))
+
+            if test_results:
+                self.append("40-scan test summary:")
+                for profile_name, delay_ms, elapsed_s, quality, points in test_results:
+                    self.append(
+                        f"  profile={profile_name:<8} | delay={delay_ms:>3} ms | "
+                        f"time={elapsed_s:.2f}s | quality={quality} | points={points}"
+                    )
+        finally:
+            self.contour_profile_combo.setCurrentText(original_profile_text)
+            self.contour_delay_combo.setCurrentText(original_delay_text)
+
+    @Slot()
     def _on_contour_delay_changed(self):
         text = self.contour_delay_combo.currentText().strip().lower()
         try:
@@ -2224,6 +2362,19 @@ class MainWindow(QMainWindow):
         except ValueError:
             delay_ms = 0
         self._contour_inter_command_delay_s = max(0.0, delay_ms / 1000.0)
+
+    @Slot()
+    def _on_contour_profile_changed(self):
+        profile_name = self.contour_profile_combo.currentText().strip().upper()
+        if profile_name not in TIMING_PROFILE_OPTIONS:
+            profile_name = "AUTO"
+        self._contour_timing_profile_name = profile_name
+        try:
+            self.zpar_query_service.set_forced_timing_profile(profile_name)
+        except ValueError as exc:
+            self.append(str(exc))
+            return
+        self.append(f"Developer timing profile set to {profile_name}")
     
     @Slot(bool)
     def _on_contour_toggled(self, enabled: bool):
@@ -2268,6 +2419,10 @@ class MainWindow(QMainWindow):
         demo_mode = self.demo_mode_check.isChecked()
         if self.machine.state == AppState.RUN:
             self.download_contour_btn.setEnabled(False)
+            self.scan_test_btn.setEnabled(False)
+            self.scan_test_40_btn.setEnabled(False)
+            self.contour_profile_combo.setEnabled(False)
+            self.contour_delay_combo.setEnabled(False)
             return
         if self.machine.state == AppState.DOWNLOADING_CONTOUR:
             self.log1_btn.setEnabled(False)
@@ -2275,6 +2430,10 @@ class MainWindow(QMainWindow):
             self.log3_btn.setEnabled(False)
             self.probe_btn.setEnabled(False)
             self.download_contour_btn.setEnabled(False)
+            self.scan_test_btn.setEnabled(False)
+            self.scan_test_40_btn.setEnabled(False)
+            self.contour_profile_combo.setEnabled(False)
+            self.contour_delay_combo.setEnabled(False)
             return
         if self.machine.state == AppState.DOWNLOADING_DIAGNOSTIC:
             self.start_btn.setEnabled(False)
@@ -2294,6 +2453,10 @@ class MainWindow(QMainWindow):
             self.button_a.setEnabled(False)
             self.button_b.setEnabled(False)
             self.download_contour_btn.setEnabled(False)
+            self.scan_test_btn.setEnabled(False)
+            self.scan_test_40_btn.setEnabled(False)
+            self.contour_profile_combo.setEnabled(False)
+            self.contour_delay_combo.setEnabled(False)
             return
         if self._tlog2chart_worker and self._tlog2chart_worker.isRunning():
             connected = self.serial.connected
@@ -2309,6 +2472,10 @@ class MainWindow(QMainWindow):
             self.button_a.setEnabled(False)
             self.button_b.setEnabled(connected)
             self.download_contour_btn.setEnabled(False)
+            self.scan_test_btn.setEnabled(False)
+            self.scan_test_40_btn.setEnabled(False)
+            self.contour_profile_combo.setEnabled(False)
+            self.contour_delay_combo.setEnabled(False)
             return
         connected = self.serial.connected
         self.log1_btn.setEnabled(demo_mode or connected)
@@ -2324,6 +2491,10 @@ class MainWindow(QMainWindow):
         self.button_a.setEnabled(connected)
         self.button_b.setEnabled(connected)
         self.download_contour_btn.setEnabled((not demo_mode) and connected)
+        self.scan_test_btn.setEnabled((not demo_mode) and connected)
+        self.scan_test_40_btn.setEnabled((not demo_mode) and connected)
+        self.contour_profile_combo.setEnabled((not demo_mode) and connected)
+        self.contour_delay_combo.setEnabled((not demo_mode) and connected)
     
     def _cap_grid_limits(self) -> tuple[int, int]:
         """Return (max_coarse, max_fine) for the connected product family."""
@@ -2405,8 +2576,10 @@ class MainWindow(QMainWindow):
         self.zpar_query_service.reset_session()
         download_start = time.monotonic()
         inter_command_delay_ms = int(round(self._contour_inter_command_delay_s * 1000))
+        timing_profile_mode = self._contour_timing_profile_name
         loaded_point_count = 0
         self.append(f"Contour inter-command delay: {inter_command_delay_ms} ms")
+        self.append(f"Contour timing profile mode: {timing_profile_mode}")
 
         try:
             z_params_list = []
@@ -2492,6 +2665,7 @@ class MainWindow(QMainWindow):
                                 "error_category": result.error_category.value if result.error_category else "",
                                 "quality_level": result.quality_level.value if result.quality_level else "",
                                 "inter_cmd_delay_ms": inter_command_delay_ms,
+                                "timing_profile_mode": timing_profile_mode,
                             }
                         )
 
@@ -2555,12 +2729,14 @@ class MainWindow(QMainWindow):
             self.contour_quality_value.setText(quality)
             history_line = (
                 f"{datetime.now().strftime('%H:%M:%S')} | {elapsed_s:.2f}s | "
-                f"delay={inter_command_delay_ms}ms | quality={quality} | points={loaded_point_count}"
+                f"delay={inter_command_delay_ms}ms | profile={timing_profile_mode} | "
+                f"quality={quality} | points={loaded_point_count}"
             )
             self.contour_history.appendPlainText(history_line)
             self.append(
                 f"Contour download timing: {elapsed_s:.2f}s "
-                f"(delay {inter_command_delay_ms} ms, quality {quality}, points {loaded_point_count})"
+                f"(delay {inter_command_delay_ms} ms, profile {timing_profile_mode}, "
+                f"quality {quality}, points {loaded_point_count})"
             )
             QApplication.restoreOverrideCursor()
             self.setEnabled(True)
@@ -2593,6 +2769,7 @@ class MainWindow(QMainWindow):
             "error_category",
             "quality_level",
             "inter_cmd_delay_ms",
+            "timing_profile_mode",
             # Z-parameters
             "z11_r",
             "z11_i",

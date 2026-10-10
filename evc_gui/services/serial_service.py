@@ -22,6 +22,7 @@ class CommandResult:
 class SerialService:
     def __init__(self):
         self._serial = None
+        self._transaction_lock = threading.RLock()  # Protects ZPAR and other critical transactions
 
     @staticmethod
     def ports() -> list[str]:
@@ -198,3 +199,50 @@ class SerialService:
                     log.info("Serial disconnected")
             finally:
                 self._serial = None
+    
+    def acquire_transaction_lock(self):
+        """Acquire transaction lock for exclusive serial port access."""
+        self._transaction_lock.acquire()
+    
+    def release_transaction_lock(self):
+        """Release transaction lock."""
+        self._transaction_lock.release()
+    
+    def drain_input_buffer(self, timeout_s: float = 0.1, quiet_period_s: float = 0.02) -> str:
+        """
+        Drain remaining input from serial buffer safely.
+        
+        Reads all available data until no data arrives for quiet_period_s.
+        Used for clean recovery between retries.
+        
+        Returns: all accumulated data as string
+        """
+        if not self.connected:
+            return ""
+        
+        old_timeout = self._serial.timeout
+        collected = []
+        deadline = time.monotonic() + timeout_s
+        last_read_at = time.monotonic()
+        
+        try:
+            self._serial.timeout = 0.01
+            while time.monotonic() < deadline:
+                elapsed_since_read = time.monotonic() - last_read_at
+                if elapsed_since_read >= quiet_period_s:
+                    # No data for quiet_period_s, consider buffer empty
+                    break
+                
+                raw = self._serial.read(1024) if hasattr(self._serial, 'read') else self._serial.readline()
+                if raw:
+                    collected.append(raw.decode(errors="replace"))
+                    last_read_at = time.monotonic()
+                else:
+                    time.sleep(0.002)  # Brief sleep to avoid busy-waiting
+            
+            return "".join(collected)
+        except Exception as exc:
+            log.warning("Error draining serial buffer: %s", exc)
+            return ""
+        finally:
+            self._serial.timeout = old_timeout

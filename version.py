@@ -1,6 +1,6 @@
 """Single source of truth for EVC GUI version information."""
 APP_NAME = "EVC GUI"
-__version__ = "26.0.13"
+__version__ = "26.0.14"
 VERSION = tuple(int(part) for part in __version__.split("."))
 COMPANY = "ASM"
 DEPARTMENT = "PEALD RF Engineering"
@@ -8,6 +8,11 @@ AUTHOR = "Victor Huang"
 CONTACT = "victor.huang@asm.com"
 
 VERSION_HISTORY = [
+    {
+        "version": "26.0.14",
+        "date": "2026-10-10",
+        "summary": "Developer scan matrix release: renames contour actions to Single Download Contour and 8 Delay Scan Test, adds timing profile selector support for fixed-profile testing, and introduces 40 Scan Test to run all 40 combinations (5 timing profiles x 8 delay steps) with per-run timing/quality/point summary output.",
+    },
     {
         "version": "26.0.13",
         "date": "2026-10-10",

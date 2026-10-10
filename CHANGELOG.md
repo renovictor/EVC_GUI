@@ -2,11 +2,27 @@
 
 All notable changes to this project are documented in this file.
 
+## [26.0.14] - 2026-10-10
+
+### Added
+- New **40 Scan Test** button in Developer tab to automatically execute all **40 combinations** of contour download settings:
+  - Timing profiles: `PROBING / GOOD / DEGRADED / POOR / FAILED`
+  - Delays: `0 / 5 / 10 / 20 / 40 / 80 / 120 / 200 ms`
+- 40-run sweep summary output including profile, delay, elapsed time, quality, and loaded contour points for each run.
+
+### Changed
+- Renamed **Download Contour** to **Single Download Contour**.
+- Renamed **Scan Test** to **8 Delay Scan Test**.
+- 8-delay test behavior remains fixed to the user-selected timing profile.
+
 ## [26.0.13] - 2026-10-10
 
 ### Added
 - New **Developer** tab with manual **Download Contour** button so contour can be fetched on-demand without waiting for auto-download after scan.
 - Configurable contour **inter-command delay** selector for `zpar` queries (`0/5/10/20/40/80/120/200 ms`) to support A/B comparison of communication robustness.
+- Configurable contour **timing profile** selector in Developer tab for direct testing of the 5 ZPAR timing profiles (`PROBING/GOOD/DEGRADED/POOR/FAILED`) with `AUTO` mode retained.
+- Renamed Developer contour action labels to **Single Download Contour** and **8 Delay Scan Test** for clearer testing intent.
+- New **40 Scan Test** button in Developer tab to automatically execute 40 contour downloads across all fixed timing profiles (`PROBING/GOOD/DEGRADED/POOR/FAILED`) and all delay options (`0..200 ms`).
 - Contour download benchmark telemetry in UI:
   - Last download elapsed time
   - Last communication quality level
